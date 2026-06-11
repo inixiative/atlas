@@ -82,10 +82,24 @@ atlas graph       # reverse indexes: seam → files, file → seams, ticket/doc 
 atlas check       # presence + vocab existence + reference existence  (the CI command)
 atlas coverage    # unannotated files; @uses curation buckets; unresolved memberships
 atlas generate    # write MAP.md from the annotated tree
+atlas report      # coverage gaps + seam graph → COVERAGE.md (Mermaid) and atlas.html (Cytoscape)
 atlas stamp [dir] # write/refresh @atlas blocks from the rules (the patcher; dry-run by default)
 ```
 
-Common flags: `--root <dir>`, `--json`, `generate --stdout`, `stamp --write`, `stamp --overwrite`.
+Common flags: `--root <dir>`, `--json`, `generate --stdout`, `stamp --write`, `stamp --overwrite`,
+`coverage --min/--ratchet`, `report --out <dir>/--md/--html`.
+
+## Visualize
+
+`atlas report` emits two artifacts:
+
+- **`COVERAGE.md`** — diffable, GitHub-native: a totals table, a Mermaid coverage pie, a per-category
+  gap table (required `@kind`/`@partOf` gaps split from the `@uses` curation buckets), and a Mermaid
+  seam-dependency graph. Categories group by **effective seam** — a file's declared `@partOf`, or the
+  rules' *predicted* seam when unannotated — so you get a per-seam work plan even at 0% coverage.
+- **`atlas.html`** — a self-contained interactive graph ([Cytoscape.js](https://js.cytoscape.org/)):
+  seams grouped by class (compound nodes), coloured by coverage; click a seam to drill into its file
+  list, click to highlight its dependencies (traverse). No build step — open it in a browser.
 
 ## The annotation model
 

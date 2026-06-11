@@ -4,7 +4,10 @@ import { runCheck } from './commands/check.ts';
 import { coverage, evaluateCoverageGate, readBaseline } from './commands/coverage.ts';
 import { generate } from './commands/generate.ts';
 import { graph } from './commands/graph.ts';
+import { buildCoverageReport, buildSeamGraph } from './commands/report.ts';
 import { inScope, runStamp } from './commands/stamp.ts';
+import { renderCoverageHtml } from './render/html.ts';
+import { renderCoverageMarkdown } from './render/markdown.ts';
 
 const HELP = `atlas — the map of the codebase
 
@@ -17,12 +20,15 @@ Commands:
   coverage              unannotated files; @uses curation buckets; unresolved memberships
                         gate with --min <pct> and/or --ratchet (vs a committed baseline)
   generate              write MAP.md from the annotated tree
+  report                coverage gaps + seam graph → COVERAGE.md (Mermaid) and atlas.html (Cytoscape)
   stamp [target]        write/refresh @atlas blocks from the config rules (the patcher)
 
 Flags:
   --root <dir>          repo root to operate on (default: cwd)
   --json                machine-readable output (graph/check/coverage/stamp)
-  --stdout              print MAP.md instead of writing the file (generate)
+  --stdout              print to stdout instead of writing a file (generate, report)
+  --out <dir>           output directory for report files (report; default: root)
+  --md / --html         emit only one report format (report; default: both)
   --warn-only           print problems but always exit 0 (check; warn-only rollout)
   --min <pct>           fail if annotated coverage is below this percentage (coverage)
   --ratchet             fail if unannotated count exceeds the baseline (coverage)
@@ -36,7 +42,7 @@ Flags:
 type Flags = Record<string, string | boolean>;
 
 // Flags that consume the next token as a value; everything else is boolean.
-const VALUE_FLAGS = new Set(['root', 'min', 'baseline']);
+const VALUE_FLAGS = new Set(['root', 'min', 'baseline', 'out']);
 
 const parseArgs = (args: string[]): { flags: Flags; positionals: string[] } => {
   const flags: Flags = {};
@@ -132,6 +138,36 @@ export const runCli = async (argv: string[], env: { cwd: string }): Promise<{ co
         log('seam → consumers (@uses):');
         for (const seam of Object.keys(g.usesConsumers).sort()) log(`  ${seam} (${g.usesConsumers[seam]!.length})`);
       }
+      return done(0);
+    }
+
+    case 'report': {
+      const a = await analyze(root);
+      const report = buildCoverageReport(a);
+      const seamGraph = buildSeamGraph(a);
+
+      if (json) {
+        log(JSON.stringify({ report, graph: seamGraph }, null, 2));
+        return done(0);
+      }
+      if (flags.stdout === true) {
+        log(renderCoverageMarkdown(report, seamGraph));
+        return done(0);
+      }
+
+      const outDir = (flags.out as string) || root;
+      const wantMd = flags.html !== true || flags.md === true;
+      const wantHtml = flags.md !== true || flags.html === true;
+      const written: string[] = [];
+      if (wantMd) {
+        await Bun.write(resolve(outDir, 'COVERAGE.md'), renderCoverageMarkdown(report, seamGraph));
+        written.push('COVERAGE.md');
+      }
+      if (wantHtml) {
+        await Bun.write(resolve(outDir, 'atlas.html'), renderCoverageHtml(report, seamGraph));
+        written.push('atlas.html');
+      }
+      log(`✓ wrote ${written.join(', ')} (${report.total.files - report.total.missingBlock}/${report.total.files} annotated)`);
       return done(0);
     }
 

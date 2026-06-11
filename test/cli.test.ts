@@ -68,6 +68,31 @@ describe('runCli', () => {
     expect(JSON.parse(out).seamToFiles['feature:billing']).toBeDefined();
   });
 
+  test('report --stdout prints the coverage markdown', async () => {
+    const { code, out } = await runCli(['report', '--stdout'], { cwd: MINI });
+    expect(code).toBe(0);
+    expect(out.startsWith('# Coverage')).toBe(true);
+  });
+
+  test('report --json includes report + graph data', async () => {
+    const { out } = await runCli(['report', '--json'], { cwd: MINI });
+    const d = JSON.parse(out);
+    expect(d.report.total.files).toBe(5);
+    expect(d.graph.nodes.length).toBe(4);
+  });
+
+  test('report writes COVERAGE.md and atlas.html to --out', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'atlas-report-'));
+    try {
+      const { code } = await runCli(['report', '--out', dir], { cwd: MINI });
+      expect(code).toBe(0);
+      expect(await Bun.file(join(dir, 'COVERAGE.md')).exists()).toBe(true);
+      expect(await Bun.file(join(dir, 'atlas.html')).exists()).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('--version prints a semver', async () => {
     const { code, out } = await runCli(['--version'], { cwd: MINI });
     expect(code).toBe(0);
