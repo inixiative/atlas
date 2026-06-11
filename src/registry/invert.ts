@@ -1,20 +1,20 @@
-import type { SeamRegistry } from './types.ts';
+import type { ConceptRegistry } from './types.ts';
 
 // The bidirectionality the whole thing is for: from a forward declaration
-// (seam → values of a field) derive the inverse (value → seam keys).
+// (concept → values of a field) derive the inverse (value → concept keys).
 //
-//   invert(seams, 'module')  → module → seam[]  (drives @partOf stamping)
-//   invert(seams, 'tickets') → ticket → seam[]  ("what does FEAT-001 touch")
-//   invert(seams, 'docs')    → doc → seam[]
+//   invert(concepts, 'module')  → module → concept[]  (drives @partOf stamping)
+//   invert(concepts, 'tickets') → ticket → concept[]  ("what does FEAT-001 touch")
+//   invert(concepts, 'docs')    → doc → concept[]
 //
-// Seam-key lists are sorted for deterministic, diff-stable output.
-export const invert = (registry: SeamRegistry, field: string): Record<string, string[]> => {
+// Concept-key lists are sorted for deterministic, diff-stable output.
+export const invert = (registry: ConceptRegistry, field: string): Record<string, string[]> => {
   const out: Record<string, string[]> = {};
-  for (const [seamKey, entry] of Object.entries(registry)) {
+  for (const [conceptKey, entry] of Object.entries(registry)) {
     const values = entry[field];
     if (!values) continue;
     for (const value of values) {
-      (out[value] ??= []).push(seamKey);
+      (out[value] ??= []).push(conceptKey);
     }
   }
   for (const value of Object.keys(out)) out[value]!.sort();

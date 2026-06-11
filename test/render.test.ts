@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { resolve } from 'node:path';
 import { analyze } from '../src/analyze.ts';
-import { buildCoverageReport, type CoverageReport, buildSeamGraph, type SeamGraph } from '../src/commands/report.ts';
+import { buildCoverageReport, type CoverageReport, buildConceptGraph, type ConceptGraph } from '../src/commands/report.ts';
 import { renderCoverageHtml } from '../src/render/html.ts';
 import { renderCoverageMarkdown, safeId } from '../src/render/markdown.ts';
 
@@ -19,16 +19,16 @@ const emptyReport: CoverageReport = {
     usesProposed: 0,
   },
   categories: [],
-  filesInMultipleSeams: 0,
+  filesInMultipleConcepts: 0,
 };
 
 describe('mermaid safety', () => {
-  test('safeId is injective — seam ids differing only by a special char do not collide', () => {
+  test('safeId is injective — concept ids differing only by a special char do not collide', () => {
     expect(safeId('feature:billing')).not.toBe(safeId('feature.billing'));
   });
 
-  test('a quote in a seam id is escaped in the mermaid label (no diagram break / injection)', () => {
-    const graph: SeamGraph = { nodes: [{ id: 'feature:a"x', cls: 'feature', label: 'a"x' }], edges: [] };
+  test('a quote in a concept id is escaped in the mermaid label (no diagram break / injection)', () => {
+    const graph: ConceptGraph = { nodes: [{ id: 'feature:a"x', cls: 'feature', label: 'a"x' }], edges: [] };
     const md = renderCoverageMarkdown(emptyReport, graph);
     expect(md).toContain('&quot;');
     expect(md).not.toContain('a"x"]'); // raw quote would break the node label
@@ -36,9 +36,9 @@ describe('mermaid safety', () => {
 });
 
 describe('renderCoverageMarkdown', () => {
-  test('emits totals, a mermaid pie, a by-category table, and a mermaid seam graph', async () => {
+  test('emits totals, a mermaid pie, a by-category table, and a mermaid concept graph', async () => {
     const a = await analyze(MINI);
-    const md = renderCoverageMarkdown(buildCoverageReport(a), buildSeamGraph(a));
+    const md = renderCoverageMarkdown(buildCoverageReport(a), buildConceptGraph(a));
     expect(md.startsWith('# Coverage')).toBe(true);
     expect(md).toContain('pie title');
     expect(md).toContain('| feature:billing |');
@@ -49,7 +49,7 @@ describe('renderCoverageMarkdown', () => {
   test('is deterministic', async () => {
     const a = await analyze(MINI);
     const r = buildCoverageReport(a);
-    const g = buildSeamGraph(a);
+    const g = buildConceptGraph(a);
     expect(renderCoverageMarkdown(r, g)).toBe(renderCoverageMarkdown(r, g));
   });
 });
@@ -57,7 +57,7 @@ describe('renderCoverageMarkdown', () => {
 describe('renderCoverageHtml', () => {
   test('is a self-contained Cytoscape page with the graph + coverage embedded as JSON', async () => {
     const a = await analyze(MINI);
-    const html = renderCoverageHtml(buildCoverageReport(a), buildSeamGraph(a));
+    const html = renderCoverageHtml(buildCoverageReport(a), buildConceptGraph(a));
     expect(html.toLowerCase().startsWith('<!doctype html>')).toBe(true);
     expect(html.toLowerCase()).toContain('cytoscape');
 
@@ -70,14 +70,14 @@ describe('renderCoverageHtml', () => {
 
   test('uses Cytoscape-parseable colours (comma-form hsl, no 4-digit alpha hex)', async () => {
     const a = await analyze(MINI);
-    const html = renderCoverageHtml(buildCoverageReport(a), buildSeamGraph(a));
+    const html = renderCoverageHtml(buildCoverageReport(a), buildConceptGraph(a));
     expect(html).toContain(', 65%, 45%)'); // comma-form hsl Cytoscape accepts
     expect(html).not.toContain(' 65% 45%)'); // the space-separated form it rejects → grey nodes
     expect(html).not.toMatch(/#[0-9a-fA-F]{4}\b/); // no 4-digit alpha hex (Cytoscape can't parse it)
   });
 
-  test('escapes < in embedded JSON so a seam id cannot break out of the script tag', () => {
-    const graph: SeamGraph = { nodes: [{ id: 'feature:</script>', cls: 'feature', label: 'x' }], edges: [] };
+  test('escapes < in embedded JSON so a concept id cannot break out of the script tag', () => {
+    const graph: ConceptGraph = { nodes: [{ id: 'feature:</script>', cls: 'feature', label: 'x' }], edges: [] };
     const html = renderCoverageHtml(emptyReport, graph);
     const body = html.slice(html.indexOf('atlas-data'));
     expect(body).not.toContain('</script>x'); // the injected close tag must be escaped

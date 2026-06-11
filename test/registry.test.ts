@@ -1,20 +1,20 @@
 import { describe, expect, test } from 'bun:test';
 import { invert } from '../src/registry/invert.ts';
-import { seamClass, seamClasses } from '../src/registry/types.ts';
+import { conceptClass, conceptClasses } from '../src/registry/types.ts';
 
-describe('seamClass', () => {
+describe('conceptClass', () => {
   test('extracts the class prefix before the colon', () => {
-    expect(seamClass('feature:tenancy')).toBe('feature');
-    expect(seamClass('infrastructure:redis')).toBe('infrastructure');
+    expect(conceptClass('feature:tenancy')).toBe('feature');
+    expect(conceptClass('infrastructure:redis')).toBe('infrastructure');
   });
 
   test('returns null for a key with no colon or an empty prefix', () => {
-    expect(seamClass('tenancy')).toBeNull();
-    expect(seamClass(':tenancy')).toBeNull();
+    expect(conceptClass('tenancy')).toBeNull();
+    expect(conceptClass(':tenancy')).toBeNull();
   });
 });
 
-describe('seamClasses', () => {
+describe('conceptClasses', () => {
   test('returns the sorted unique set of classes in the registry', () => {
     const registry = {
       'feature:tenancy': {},
@@ -22,12 +22,12 @@ describe('seamClasses', () => {
       'primitive:authz': {},
       'infrastructure:redis': {},
     };
-    expect(seamClasses(registry)).toEqual(['feature', 'infrastructure', 'primitive']);
+    expect(conceptClasses(registry)).toEqual(['feature', 'infrastructure', 'primitive']);
   });
 });
 
 describe('invert', () => {
-  test('maps each field value to the seam keys that declare it', () => {
+  test('maps each field value to the concept keys that declare it', () => {
     const registry = {
       'feature:tenancy': { module: ['organization', 'space', 'membership'] },
       'feature:users': { module: ['user'] },
@@ -40,7 +40,7 @@ describe('invert', () => {
     });
   });
 
-  test('a value shared across seams maps to all of them, sorted (N→M membership)', () => {
+  test('a value shared across concepts maps to all of them, sorted (N→M membership)', () => {
     const registry = {
       'primitive:appEvents': { module: ['appEvents', 'emailBridge'] },
       'feature:email': { module: ['email', 'emailBridge'] },
@@ -48,7 +48,7 @@ describe('invert', () => {
     expect(invert(registry, 'module').emailBridge).toEqual(['feature:email', 'primitive:appEvents']);
   });
 
-  test('inverts any consumer-defined field, including references (ticket → seams)', () => {
+  test('inverts any consumer-defined field, including references (ticket → concepts)', () => {
     const registry = {
       'feature:inquiry': { tickets: ['FEAT-001'] },
       'feature:nesting': { tickets: ['FEAT-001', 'FEAT-016'] },
@@ -56,7 +56,7 @@ describe('invert', () => {
     expect(invert(registry, 'tickets')['FEAT-001']).toEqual(['feature:inquiry', 'feature:nesting']);
   });
 
-  test('returns an empty object when no seam declares the field', () => {
+  test('returns an empty object when no concept declares the field', () => {
     expect(invert({ 'feature:x': { module: ['a'] } }, 'tickets')).toEqual({});
   });
 });

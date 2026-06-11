@@ -19,8 +19,8 @@ export default defineConfig({
     { include: '**/jobs/**', kind: 'job' },
 
     // @partOf from a captured path segment, resolved through your constituent
-    // categories in seams.ts. `$1` captures one segment; `partOfFor('module', '$1')`
-    // looks the captured folder up across every seam's `module` list (→ multi-@partOf).
+    // categories in concepts.ts. `$1` captures one segment; `partOfFor('module', '$1')`
+    // looks the captured folder up across every concept's `module` list (→ multi-@partOf).
     { include: 'apps/api/src/modules/$1/**', partOf: partOfFor('module', '$1') },
     { include: 'apps/api/src/integrations/$1/**', partOf: partOfFor('integration', '$1') },
     { include: 'packages/$1/**', partOf: partOfFor('package', '$1') },

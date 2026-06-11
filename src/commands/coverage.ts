@@ -14,7 +14,7 @@ export type Coverage = {
     proposed: string[]; // tentative @uses? — patcher proposed, awaiting acceptance
     curated: string[]; // real @uses values
   };
-  // membership captures (partOfFor) that matched no seam — fillable signal, not an error.
+  // membership captures (partOfFor) that matched no concept — fillable signal, not an error.
   unresolved: { file: string; category: string; value: string }[];
 };
 
@@ -77,7 +77,7 @@ export const coverage = (a: Analysis): Coverage => {
               : uses.curated;
       bucket.push(path);
     }
-    for (const u of stampFor(path, a.config.stamp, a.config.seams).unresolved) {
+    for (const u of stampFor(path, a.config.stamp, a.config.concepts).unresolved) {
       unresolved.push({ file: path, category: u.category, value: u.value });
     }
   }

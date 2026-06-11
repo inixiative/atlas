@@ -1,10 +1,10 @@
-import type { CoverageReport, Gaps, SeamGraph } from '../commands/report.ts';
+import type { CoverageReport, Gaps, ConceptGraph } from '../commands/report.ts';
 
-// Injective sanitizer for Mermaid node ids: distinct seam ids never collide
+// Injective sanitizer for Mermaid node ids: distinct concept ids never collide
 // (encoding the char code keeps `feature:billing` and `feature.billing` apart).
 export const safeId = (id: string): string => id.replace(/[^a-zA-Z0-9]/g, (c) => `_${c.charCodeAt(0)}_`);
 
-// Escape a Mermaid quoted-label so a `"` in a seam id can't break the diagram
+// Escape a Mermaid quoted-label so a `"` in a concept id can't break the diagram
 // or inject directives.
 const safeLabel = (s: string): string => s.replace(/"/g, '&quot;');
 
@@ -39,7 +39,7 @@ const categoryTable = (report: CoverageReport): string => {
   return [...head, ...rows].join('\n');
 };
 
-const seamGraph = (graph: SeamGraph): string => {
+const conceptGraph = (graph: ConceptGraph): string => {
   const lines = ['```mermaid', 'graph LR'];
   const byClass: Record<string, typeof graph.nodes> = {};
   for (const n of graph.nodes) (byClass[n.cls] ??= []).push(n);
@@ -54,8 +54,8 @@ const seamGraph = (graph: SeamGraph): string => {
 };
 
 // COVERAGE.md — diffable, GitHub-native (Mermaid renders inline). Totals + a
-// coverage pie + a per-category gap table + the seam dependency graph.
-export const renderCoverageMarkdown = (report: CoverageReport, graph: SeamGraph): string =>
+// coverage pie + a per-category gap table + the concept dependency graph.
+export const renderCoverageMarkdown = (report: CoverageReport, graph: ConceptGraph): string =>
   [
     '# Coverage',
     '',
@@ -69,18 +69,18 @@ export const renderCoverageMarkdown = (report: CoverageReport, graph: SeamGraph)
     '',
     '## By category',
     '',
-    'Grouped by effective seam (declared `@partOf`, else the rules’ predicted seam). `@uses` columns',
+    'Grouped by effective concept (declared `@partOf`, else the rules’ predicted concept). `@uses` columns',
     'are curation signals, not failures.',
-    ...(report.filesInMultipleSeams > 0
-      ? ['', `> ${report.filesInMultipleSeams} file(s) belong to multiple seams, so the per-category file counts sum to more than the total.`]
+    ...(report.filesInMultipleConcepts > 0
+      ? ['', `> ${report.filesInMultipleConcepts} file(s) belong to multiple concepts, so the per-category file counts sum to more than the total.`]
       : []),
     '',
     categoryTable(report),
     '',
-    '## Seam graph',
+    '## Concept graph',
     '',
-    'Edges are `@partOf` → `@uses`: a seam depends on what its files use.',
+    'Edges are `@partOf` → `@uses`: a concept depends on what its files use.',
     '',
-    seamGraph(graph),
+    conceptGraph(graph),
     '',
   ].join('\n');

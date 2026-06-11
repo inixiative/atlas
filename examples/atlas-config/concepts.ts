@@ -1,19 +1,19 @@
-import type { SeamRegistry } from '@inixiative/atlas';
+import type { ConceptRegistry } from '@inixiative/atlas';
 
-// The seam registry — the single source of valid seams, repo-OWNED, STRUCTURE
+// The concept registry — the single source of valid concepts, repo-OWNED, STRUCTURE
 // ONLY (no status, no notes — those rot). Keyed `class:name`; the class prefix
 // (feature / primitive / infrastructure / registry) is your choice, derived
 // from these keys, not hardcoded by atlas.
 //
 // Each entry is a bag of named string lists you define:
-//   - reference fields (docs, tickets) — where to read about the seam; checked
+//   - reference fields (docs, tickets) — where to read about the concept; checked
 //     for existence by `atlas check` if you wire a resolver in config.ts, and
-//     invertible (ticket → seams, doc → seams).
+//     invertible (ticket → concepts, doc → concepts).
 //   - constituent fields (module, package, integration) — the code that COMPOSES
-//     the seam. These fill @partOf during `atlas stamp` via partOfFor(...).
+//     the concept. These fill @partOf during `atlas stamp` via partOfFor(...).
 //
-// A module/package routinely belongs to several seams — multi-@partOf is normal.
-export const SEAMS: SeamRegistry = {
+// A module/package routinely belongs to several concepts — multi-@partOf is normal.
+export const CONCEPTS: ConceptRegistry = {
   // ── features (user-facing capabilities) ───────────────────────────────────
   'feature:tenancy': { module: ['organization', 'space', 'membership'], docs: ['AUTH.md'], tickets: ['AUTH-002'] },
   'feature:billing': { module: ['billing', 'invoicing'], docs: ['BILLING.md'] },

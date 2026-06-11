@@ -1,9 +1,9 @@
-import type { SeamRegistry } from '@inixiative/atlas';
+import type { ConceptRegistry } from '@inixiative/atlas';
 
-// Repo-OWNED registry. The consumer defines its seam classes (feature/primitive/
+// Repo-OWNED registry. The consumer defines its concept classes (feature/primitive/
 // infrastructure) and its constituent category (`module`) — none of which atlas
 // hardcodes. Structure only: references (docs/tickets) + constituents (module).
-export const SEAMS: SeamRegistry = {
+export const CONCEPTS: ConceptRegistry = {
   'feature:billing': { module: ['billing'], docs: ['BILLING.md'], tickets: ['FEAT-100'] },
   'primitive:email': { module: ['email'], docs: ['EMAIL.md'] },
   'primitive:authz': {},

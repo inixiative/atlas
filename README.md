@@ -1,7 +1,7 @@
 # atlas
 
 **The map of the codebase.** atlas reads `@atlas` annotations declared at the top of each file,
-validates them against a repo-owned **seam registry**, and generates a `MAP.md` that *cannot drift
+validates them against a repo-owned **concept registry**, and generates a `MAP.md` that *cannot drift
 on the structural facts* — because atlas only ever asserts what is mechanically true (what exists,
 how it connects), never maturity or correctness.
 
@@ -20,7 +20,7 @@ repo defines its own vocabulary.**
 ## Why
 
 Hand-maintained maps (FEATURES.md, docs, prose) drift from the code. atlas makes the map a
-*projection* of the code: every file declares traversable **seams** — what it is, what it's part
+*projection* of the code: every file declares traversable **concepts** — what it is, what it's part
 of, what it uses — so the repo is explorable by **concept** instead of by crawling folders.
 "Show me everything that touches caching" becomes one traversal.
 
@@ -38,21 +38,21 @@ atlas is Bun-native (it imports your `.atlas/*.ts` config directly).
 ## Configure
 
 A consuming repo gets a `.atlas/` folder. atlas ships a sensible default `kinds` vocab; the
-repo **owns** its seam registry.
+repo **owns** its concept registry.
 
 ```
 .atlas/
   config.ts     // stamp rules (path → tags) + ignore + reference resolvers
   kinds.ts      // @kind vocab — extends atlas's defaults
-  seams.ts      // the seam registry — repo-OWNED, structure only
+  concepts.ts      // the concept registry — repo-OWNED, structure only
 ```
 
 ```ts
-// .atlas/seams.ts — structure only, no status/note. YOU define the seam classes
+// .atlas/concepts.ts — structure only, no status/note. YOU define the concept classes
 // (feature/primitive/…) and the constituent categories (module/package/…).
-import type { SeamRegistry } from '@inixiative/atlas';
+import type { ConceptRegistry } from '@inixiative/atlas';
 
-export const SEAMS: SeamRegistry = {
+export const CONCEPTS: ConceptRegistry = {
   'feature:tenancy': { module: ['organization', 'space'], docs: ['AUTH.md'] },
   'infrastructure:redis': { docs: ['REDIS.md'] },
 };
@@ -74,16 +74,16 @@ export default defineConfig({
 ```
 
 A complete, commented set you can copy into your repo's `.atlas/` is in
-[`examples/atlas-config/`](./examples/atlas-config/) (`kinds.ts`, `seams.ts`, `config.ts`).
+[`examples/atlas-config/`](./examples/atlas-config/) (`kinds.ts`, `concepts.ts`, `config.ts`).
 
 ## CLI
 
 ```bash
-atlas graph       # reverse indexes: seam → files, file → seams, ticket/doc → seams
+atlas graph       # reverse indexes: concept → files, file → concepts, ticket/doc → concepts
 atlas check       # presence + vocab existence + reference existence  (the CI command)
 atlas coverage    # unannotated files; @uses curation buckets; unresolved memberships
 atlas generate    # write MAP.md from the annotated tree
-atlas report      # coverage gaps + seam graph → COVERAGE.md (Mermaid) and atlas.html (Cytoscape)
+atlas report      # coverage gaps + concept graph → COVERAGE.md (Mermaid) and atlas.html (Cytoscape)
 atlas stamp [dir] # write/refresh @atlas blocks from the rules (the patcher; dry-run by default)
 ```
 
@@ -97,8 +97,8 @@ line into your agent's system prompt / `CLAUDE.md` / `AGENTS.md` so it navigates
 instead of crawling folders:
 
 > This repo is mapped by **atlas**. To find code by concept instead of by filename: read `MAP.md`
-> for the seam overview; run `bunx atlas graph --json` for the reverse indexes (seam → files via
-> `@partOf`, seam → consumers via `@uses`); and read a file's top-of-file `@atlas` block
+> for the concept overview; run `bunx atlas graph --json` for the reverse indexes (concept → files via
+> `@partOf`, concept → consumers via `@uses`); and read a file's top-of-file `@atlas` block
 > (`@kind` / `@partOf` / `@uses`) before its body. Prefer these over `grep` for "what touches X" /
 > "what's part of Y" questions.
 
@@ -114,10 +114,10 @@ calls; agents left to `grep` took 2–3× as many and risk missing the transitiv
 
 - **`COVERAGE.md`** — diffable, GitHub-native: a totals table, a Mermaid coverage pie, a per-category
   gap table (required `@kind`/`@partOf` gaps split from the `@uses` curation buckets), and a Mermaid
-  seam-dependency graph. Categories group by **effective seam** — a file's declared `@partOf`, or the
-  rules' *predicted* seam when unannotated — so you get a per-seam work plan even at 0% coverage.
+  concept-dependency graph. Categories group by **effective concept** — a file's declared `@partOf`, or the
+  rules' *predicted* concept when unannotated — so you get a per-concept work plan even at 0% coverage.
 - **`atlas.html`** — a self-contained interactive graph ([Cytoscape.js](https://js.cytoscape.org/)):
-  seams grouped by class (compound nodes), coloured by coverage; click a seam to drill into its file
+  concepts grouped by class (compound nodes), coloured by coverage; click a concept to drill into its file
   list, click to highlight its dependencies (traverse). No build step — open it in a browser.
 
 ## The annotation model
@@ -125,8 +125,8 @@ calls; agents left to `grep` took 2–3× as many and risk missing the transitiv
 | Question | Tag | Value | Notes |
 |----------|-----|-------|-------|
 | What is this? | `@kind` | closed enum | 1+, e.g. `entrypoint, registry` |
-| What is it part of? | `@partOf` | `class:name` seam(s) | membership; multi is normal |
-| What does it use? | `@uses` | `class:name` seam(s) | dependency, load-bearing only |
+| What is it part of? | `@partOf` | `class:name` concept(s) | membership; multi is normal |
+| What does it use? | `@uses` | `class:name` concept(s) | dependency, load-bearing only |
 | What does it build? | `@constructs` | factory output | constructors only |
 
 All axes are multi-valued (comma-separated on one line). `@atlas` opens the block.
@@ -177,8 +177,8 @@ atlas coverage --update-baseline # record the current count (commit the baseline
 ## Enforcement: existence, NOT correctness
 
 `atlas check` verifies annotations **exist and use valid vocabulary** — presence of a block, that
-`@kind` is in the vocab, that `@partOf`/`@uses` name a seam that exists, and that a
-seam's doc/ticket references resolve. It explicitly does **not** reconcile the import graph, judge
+`@kind` is in the vocab, that `@partOf`/`@uses` name a concept that exists, and that a
+concept's doc/ticket references resolve. It explicitly does **not** reconcile the import graph, judge
 whether a `@partOf` is "really true," or derive any status. Those are fool's errands that trade a
 clear structural guarantee for a fragile proxy.
 

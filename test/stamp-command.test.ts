@@ -9,7 +9,7 @@ import { parseAtlasBlock } from '../src/parse/parseAtlasBlock.ts';
 
 const config: LoadedConfig = {
   kinds: [],
-  seams: { 'feature:billing': { module: ['billing'] } },
+  concepts: { 'feature:billing': { module: ['billing'] } },
   stamp: [
     { include: '**/controllers/**', kind: 'controller' },
     { include: 'src/modules/$1/**', partOf: partOfFor('module', '$1') },
@@ -56,8 +56,8 @@ describe('runStamp (write to disk)', () => {
       await Bun.write(resolve(dir, file), 'export const x = 1;\n');
       // write a minimal .atlas so loadConfig finds the rules
       await Bun.write(
-        resolve(dir, '.atlas/seams.ts'),
-        "export const SEAMS = { 'feature:billing': { module: ['billing'] } };\n",
+        resolve(dir, '.atlas/concepts.ts'),
+        "export const CONCEPTS = { 'feature:billing': { module: ['billing'] } };\n",
       );
       await Bun.write(
         resolve(dir, '.atlas/config.ts'),
@@ -76,11 +76,11 @@ describe('runStamp (write to disk)', () => {
     }
   });
 
-  test('surfaces unresolved memberships (a partOf capture matching no seam)', async () => {
+  test('surfaces unresolved memberships (a partOf capture matching no concept)', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'atlas-unres-'));
     try {
       await Bun.write(resolve(dir, 'src/modules/ghost/x.ts'), 'export const x = 1;\n');
-      await Bun.write(resolve(dir, '.atlas/seams.ts'), "export const SEAMS = { 'feature:real': { module: ['real'] } };\n");
+      await Bun.write(resolve(dir, '.atlas/concepts.ts'), "export const CONCEPTS = { 'feature:real': { module: ['real'] } };\n");
       await Bun.write(
         resolve(dir, '.atlas/config.ts'),
         "export default { include: ['src/**/*.ts'], stamp: [{ include: 'src/modules/$1/**', partOf: { __atlasPartOfFor: true, category: 'module', capture: '$1' } }] };\n",

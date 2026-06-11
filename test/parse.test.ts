@@ -69,7 +69,7 @@ describe('parseAtlasBlock', () => {
     expect(ann?.usesState).toBe('values');
   });
 
-  test('real @uses values win over a stray none token (no phantom "none" seam)', () => {
+  test('real @uses values win over a stray none token (no phantom "none" concept)', () => {
     const inline = parseAtlasBlock(block(' * @atlas\n * @uses none, primitive:authz'));
     expect(inline?.usesState).toBe('values');
     expect(inline?.uses).toEqual(['primitive:authz']);

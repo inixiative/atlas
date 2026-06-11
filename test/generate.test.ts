@@ -6,7 +6,7 @@ import { generate } from '../src/commands/generate.ts';
 const MINI = resolve(import.meta.dir, 'fixtures/mini');
 
 describe('generate (MAP.md)', () => {
-  test('groups seams by class with file lists and a kind breakdown', async () => {
+  test('groups concepts by class with file lists and a kind breakdown', async () => {
     const map = generate(await analyze(MINI));
     expect(map.startsWith('# MAP')).toBe(true);
     expect(map).toContain('## feature');
@@ -17,7 +17,7 @@ describe('generate (MAP.md)', () => {
     expect(map).toContain('### infrastructure:redis');
   });
 
-  test('lists @uses consumers under the seam they depend on', async () => {
+  test('lists @uses consumers under the concept they depend on', async () => {
     const map = generate(await analyze(MINI));
     const redisSection = map.slice(map.indexOf('### infrastructure:redis'));
     expect(redisSection).toContain('src/modules/billing/services/charge.ts');

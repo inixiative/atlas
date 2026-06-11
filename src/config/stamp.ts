@@ -1,5 +1,5 @@
 import { invert } from '../registry/invert.ts';
-import type { SeamRegistry } from '../registry/types.ts';
+import type { ConceptRegistry } from '../registry/types.ts';
 import { isPartOfFor, type StampRule, type TagValue } from './defineConfig.ts';
 import { type Captures, matchGlob } from './glob.ts';
 
@@ -9,7 +9,7 @@ export type ResolvedStamp = {
   kind: string[];
   partOf: string[];
   constructs: string[];
-  // partOfFor captures that matched no seam — surfaced by `coverage`, never an error.
+  // partOfFor captures that matched no concept — surfaced by `coverage`, never an error.
   unresolved: { category: string; value: string }[];
 };
 
@@ -32,7 +32,7 @@ const toArray = (v: TagValue): (string | TagValue)[] => (Array.isArray(v) ? v : 
 const resolveTag = (
   value: TagValue,
   caps: Captures,
-  registry: SeamRegistry,
+  registry: ConceptRegistry,
   unresolved: { category: string; value: string }[],
 ): string[] => {
   const out: string[] = [];
@@ -40,12 +40,12 @@ const resolveTag = (
     if (isPartOfFor(item)) {
       const segment = interpolate(item.capture, caps);
       if (segment === null) continue;
-      const seams = invert(registry, item.category)[segment];
-      if (!seams || seams.length === 0) {
+      const concepts = invert(registry, item.category)[segment];
+      if (!concepts || concepts.length === 0) {
         unresolved.push({ category: item.category, value: segment });
         continue;
       }
-      out.push(...seams);
+      out.push(...concepts);
     } else if (typeof item === 'string') {
       const resolved = interpolate(item, caps);
       if (resolved !== null) out.push(resolved);
@@ -55,7 +55,7 @@ const resolveTag = (
 };
 
 // Compose EVERY matching rule's contributions for a file (not first-match-wins).
-export const stampFor = (path: string, rules: StampRule[], registry: SeamRegistry): ResolvedStamp => {
+export const stampFor = (path: string, rules: StampRule[], registry: ConceptRegistry): ResolvedStamp => {
   const kind: string[] = [];
   const partOf: string[] = [];
   const constructs: string[] = [];

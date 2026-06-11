@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { resolve } from 'node:path';
 import { analyze } from '../src/analyze.ts';
-import { buildCoverageReport, buildSeamGraph } from '../src/commands/report.ts';
+import { buildCoverageReport, buildConceptGraph } from '../src/commands/report.ts';
 
 const MINI = resolve(import.meta.dir, 'fixtures/mini');
 
@@ -17,19 +17,19 @@ describe('buildCoverageReport', () => {
     expect(total.usesCurated).toBe(2); // createInvoice, charge
   });
 
-  test('groups by effective seam (actual @partOf, else predicted), with an (unmapped) bucket', async () => {
+  test('groups by effective concept (actual @partOf, else predicted), with an (unmapped) bucket', async () => {
     const { categories } = buildCoverageReport(await analyze(MINI));
     const by = Object.fromEntries(categories.map((c) => [c.category, c]));
     expect(by['feature:billing']?.files).toBe(3);
     expect(by['feature:billing']?.usesUncurated).toBe(1);
     expect(by['primitive:email']?.usesCuratedEmpty).toBe(1);
-    expect(by['(unmapped)']?.missingBlock).toBe(1); // legacy.ts has no rule-predicted seam
+    expect(by['(unmapped)']?.missingBlock).toBe(1); // legacy.ts has no rule-predicted concept
   });
 
-  test('reports filesInMultipleSeams so category sums exceeding the total are explained', async () => {
+  test('reports filesInMultipleConcepts so category sums exceeding the total are explained', async () => {
     const report = buildCoverageReport({
       root: '/x',
-      config: { kinds: [], seams: { 'feature:a': {}, 'feature:b': {} }, stamp: [], ignore: [], include: [], references: {} },
+      config: { kinds: [], concepts: { 'feature:a': {}, 'feature:b': {} }, stamp: [], ignore: [], include: [], references: {} },
       files: [
         {
           path: 'x.ts',
@@ -46,13 +46,13 @@ describe('buildCoverageReport', () => {
       ],
     });
     expect(report.total.files).toBe(1);
-    expect(report.filesInMultipleSeams).toBe(1); // the one file is counted in both feature:a and feature:b
+    expect(report.filesInMultipleConcepts).toBe(1); // the one file is counted in both feature:a and feature:b
   });
 });
 
-describe('buildSeamGraph', () => {
-  test('nodes are registry seams; edges are partOf→uses aggregated from files', async () => {
-    const g = buildSeamGraph(await analyze(MINI));
+describe('buildConceptGraph', () => {
+  test('nodes are registry concepts; edges are partOf→uses aggregated from files', async () => {
+    const g = buildConceptGraph(await analyze(MINI));
     expect(g.nodes.map((n) => n.id).sort()).toEqual([
       'feature:billing',
       'infrastructure:redis',
@@ -65,7 +65,7 @@ describe('buildSeamGraph', () => {
   });
 
   test('nodes carry their class for grouping', async () => {
-    const g = buildSeamGraph(await analyze(MINI));
+    const g = buildConceptGraph(await analyze(MINI));
     expect(g.nodes.find((n) => n.id === 'feature:billing')?.cls).toBe('feature');
   });
 });

@@ -28,7 +28,7 @@ export const computeStamp = (
   config: LoadedConfig,
   mode: StampMode,
 ): StampChange | null => {
-  const resolved = stampFor(path, config.stamp, config.seams);
+  const resolved = stampFor(path, config.stamp, config.concepts);
   const { content, changed } = applyStamp(source, resolved, mode);
   return changed ? { path, before: source, after: content } : null;
 };
@@ -49,7 +49,7 @@ export const planStamp = (
 // the default everywhere — writing requires the explicit flag. Reads/writes are
 // concurrency-bounded so a large repo can't exhaust file descriptors. Unresolved
 // memberships are surfaced here (not just in `coverage`) so a capture that maps
-// to no seam — leaving a file under-stamped — is visible at write time.
+// to no concept — leaving a file under-stamped — is visible at write time.
 export const runStamp = async (
   root: string,
   opts: { mode: StampMode; target?: string; write: boolean },
@@ -64,7 +64,7 @@ export const runStamp = async (
   const changes = planStamp(files, config, opts.mode, opts.target);
   const unresolved: Unresolved[] = [];
   for (const { path } of files) {
-    for (const u of stampFor(path, config.stamp, config.seams).unresolved) {
+    for (const u of stampFor(path, config.stamp, config.concepts).unresolved) {
       unresolved.push({ file: path, category: u.category, value: u.value });
     }
   }

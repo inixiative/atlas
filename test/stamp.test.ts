@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import { partOfFor, type StampRule } from '../src/config/defineConfig.ts';
 import { stampFor } from '../src/config/stamp.ts';
-import type { SeamRegistry } from '../src/registry/types.ts';
+import type { ConceptRegistry } from '../src/registry/types.ts';
 
-const registry: SeamRegistry = {
+const registry: ConceptRegistry = {
   'feature:billing': { module: ['billing'] },
   'feature:email': { module: ['email', 'emailBridge'] },
   'primitive:appEvents': { module: ['appEvents', 'emailBridge'] },
@@ -21,13 +21,13 @@ describe('stampFor', () => {
     expect(s.partOf).toEqual(['feature:billing']);
   });
 
-  test('a capture resolving to several seams yields multi-@partOf, sorted', () => {
+  test('a capture resolving to several concepts yields multi-@partOf, sorted', () => {
     const s = stampFor('apps/api/src/modules/emailBridge/handler.ts', rules, registry);
     expect(s.partOf).toEqual(['feature:email', 'primitive:appEvents']);
     expect(s.kind).toEqual([]);
   });
 
-  test('a capture resolving to zero seams stamps nothing and is reported, not errored', () => {
+  test('a capture resolving to zero concepts stamps nothing and is reported, not errored', () => {
     const s = stampFor('apps/api/src/modules/unknown/x.ts', rules, registry);
     expect(s.partOf).toEqual([]);
     expect(s.unresolved).toEqual([{ category: 'module', value: 'unknown' }]);

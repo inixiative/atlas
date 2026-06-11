@@ -1,21 +1,21 @@
-import type { CoverageReport, SeamGraph } from '../commands/report.ts';
+import type { CoverageReport, ConceptGraph } from '../commands/report.ts';
 
 // JSON embedded in a <script> tag must not contain a literal </script> or a
 // raw '<'; escaping '<' is sufficient and keeps it valid JSON.
 const embed = (data: unknown): string => JSON.stringify(data).replace(/</g, '\\u003c');
 
-// A self-contained interactive report: Cytoscape (via CDN) renders the seam
-// graph with compound nodes grouping seams by class (the grouping view), node
+// A self-contained interactive report: Cytoscape (via CDN) renders the concept
+// graph with compound nodes grouping concepts by class (the grouping view), node
 // colour = block coverage, tap a node to drill into its files, tap to highlight
 // neighbours (traverse). No build step — open the file in a browser.
-export const renderCoverageHtml = (report: CoverageReport, graph: SeamGraph): string => {
+export const renderCoverageHtml = (report: CoverageReport, graph: ConceptGraph): string => {
   const data = embed({ report, graph });
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>atlas — coverage & seam graph</title>
+<title>atlas — coverage & concept graph</title>
 <script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
 <style>
   :root { color-scheme: light dark; }
@@ -36,7 +36,7 @@ export const renderCoverageHtml = (report: CoverageReport, graph: SeamGraph): st
 </head>
 <body>
 <div id="cy"></div>
-<div id="panel"><h1>atlas</h1><p class="sub">click a seam to drill in · click again to traverse</p><p class="hint">Loading…</p></div>
+<div id="panel"><h1>atlas</h1><p class="sub">click a concept to drill in · click again to traverse</p><p class="hint">Loading…</p></div>
 <script id="atlas-data" type="application/json">${data}</script>
 <script>
   const { report, graph } = JSON.parse(document.getElementById('atlas-data').textContent);
@@ -84,7 +84,7 @@ export const renderCoverageHtml = (report: CoverageReport, graph: SeamGraph): st
       + '<table>' + row('files', t.files) + row('missing block', t.missingBlock) + row('missing @kind', t.missingKind)
       + row('missing @partOf', t.missingPartOf) + row('@uses uncurated', t.usesUncurated)
       + row('@uses curated-empty', t.usesCuratedEmpty) + row('@uses curated', t.usesCurated) + '</table>'
-      + '<p class="hint">Node colour = block coverage (red→green). Boxes group seams by class.</p>';
+      + '<p class="hint">Node colour = block coverage (red→green). Boxes group concepts by class.</p>';
   };
   showTotals();
 

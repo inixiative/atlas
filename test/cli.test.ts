@@ -63,9 +63,9 @@ describe('runCli', () => {
     }
   });
 
-  test('graph --json exposes the seam indexes', async () => {
+  test('graph --json exposes the concept indexes', async () => {
     const { out } = await runCli(['graph', '--json'], { cwd: MINI });
-    expect(JSON.parse(out).seamToFiles['feature:billing']).toBeDefined();
+    expect(JSON.parse(out).conceptToFiles['feature:billing']).toBeDefined();
   });
 
   test('coverage --min with a non-numeric value errors instead of silently disabling the gate', async () => {
@@ -89,10 +89,10 @@ describe('runCli', () => {
   test('a misconfigured .atlas surfaces as a clean error + exit 1, not a stack trace', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'atlas-bad-'));
     try {
-      await Bun.write(join(dir, '.atlas/seams.ts'), 'export const WRONG = {};\n');
+      await Bun.write(join(dir, '.atlas/concepts.ts'), 'export const WRONG = {};\n');
       const { code, out } = await runCli(['check'], { cwd: dir });
       expect(code).toBe(1);
-      expect(out).toContain('seams.ts');
+      expect(out).toContain('concepts.ts');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

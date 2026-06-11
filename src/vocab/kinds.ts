@@ -5,7 +5,7 @@
 // atlas validates `@kind` values against the merged set the repo provides; it
 // does not force this list on anyone. These are the near-universal SaaS roles.
 //
-// Role and seam are orthogonal: a db mutation-lifecycle "hook" is
+// Role and concept are orthogonal: a db mutation-lifecycle "hook" is
 // `@kind handler @partOf primitive:mutationLifecycle`, never a fused kind.
 // `hook` here means a React hook (frontend) — the universal meaning.
 
@@ -16,7 +16,7 @@ export const DEFAULT_KINDS = [
   'routeTemplate', // readRoute/createRoute/… in lib/routeTemplates
   'middleware', // middleware/*
   'handler', // handler — pair with @partOf (jobs, app-events, db mutation hooks)
-  'helper', // small focused helper bound to a seam (vs generic `utils`)
+  'helper', // small focused helper bound to a concept (vs generic `utils`)
   'service', // domain logic in modules/*/services and internal module parts
   'schema', // request/response schemas in modules/*/schemas
   'validator', // modules/*/validations
@@ -27,7 +27,7 @@ export const DEFAULT_KINDS = [
   'registry', // a declarative config table (the registry pattern)
   'primitive', // a reusable building block's own implementation
   'infrastructure', // connection/client to an external dependency (redis, prisma, s3…)
-  'entrypoint', // the way into a seam (ws/index, app bootstrap)
+  'entrypoint', // the way into a concept (ws/index, app bootstrap)
   'config', // configuration / env wiring
   'constant', // a closed set of literal values / lookup table, no behavioral hook
   'type', // a pure type-only module (no runtime), distinct from a Zod schema

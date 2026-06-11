@@ -7,7 +7,7 @@ import type { Analysis } from '../analyze.ts';
 export type Problem = {
   kind: 'presence' | 'vocab' | 'reference';
   file?: string;
-  seam?: string;
+  concept?: string;
   message: string;
 };
 
@@ -19,27 +19,27 @@ export const checkPresence = (a: Analysis): Problem[] =>
     .filter((f) => f.annotation === null)
     .map((f) => ({ kind: 'presence' as const, file: f.path, message: 'missing @atlas block' }));
 
-// vocab existence — @kind is in the vocab; @partOf/@uses name a seam that
+// vocab existence — @kind is in the vocab; @partOf/@uses name a concept that
 // EXISTS in the registry (not: is the file really part of it).
 export const checkVocab = (a: Analysis): Problem[] => {
   const kinds = new Set(a.config.kinds);
-  const seams = new Set(Object.keys(a.config.seams));
+  const concepts = new Set(Object.keys(a.config.concepts));
   const problems: Problem[] = [];
   for (const { path, annotation } of a.files) {
     if (!annotation) continue;
     for (const k of annotation.kind) if (!kinds.has(k)) problems.push({ kind: 'vocab', file: path, message: `unknown @kind '${k}'` });
     for (const p of annotation.partOf)
-      if (!seams.has(p)) problems.push({ kind: 'vocab', file: path, message: `@partOf '${p}' is not a registered seam` });
+      if (!concepts.has(p)) problems.push({ kind: 'vocab', file: path, message: `@partOf '${p}' is not a registered concept` });
     for (const u of annotation.uses)
-      if (!seams.has(u)) problems.push({ kind: 'vocab', file: path, message: `@uses '${u}' is not a registered seam` });
+      if (!concepts.has(u)) problems.push({ kind: 'vocab', file: path, message: `@uses '${u}' is not a registered concept` });
   }
   return problems;
 };
 
-// reference existence — a seam's doc/ticket paths resolve to real files.
+// reference existence — a concept's doc/ticket paths resolve to real files.
 export const checkReferences = async (a: Analysis): Promise<Problem[]> => {
   const problems: Problem[] = [];
-  for (const [seam, entry] of Object.entries(a.config.seams)) {
+  for (const [concept, entry] of Object.entries(a.config.concepts)) {
     for (const [field, resolver] of Object.entries(a.config.references)) {
       for (const value of entry[field] ?? []) {
         // The resolver is consumer code — a throw becomes a structured problem,
@@ -49,11 +49,11 @@ export const checkReferences = async (a: Analysis): Promise<Problem[]> => {
           rel = resolver(value);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          problems.push({ kind: 'reference', seam, message: `${seam}: ${field} resolver threw on '${value}': ${msg}` });
+          problems.push({ kind: 'reference', concept, message: `${concept}: ${field} resolver threw on '${value}': ${msg}` });
           continue;
         }
         if (!(await Bun.file(resolve(a.root, rel)).exists())) {
-          problems.push({ kind: 'reference', seam, message: `${seam}: ${field} reference '${value}' → ${rel} does not exist` });
+          problems.push({ kind: 'reference', concept, message: `${concept}: ${field} reference '${value}' → ${rel} does not exist` });
         }
       }
     }

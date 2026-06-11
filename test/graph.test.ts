@@ -9,26 +9,26 @@ const SERVICE = 'src/modules/billing/services/charge.ts';
 const UTIL = 'src/lib/util.ts';
 
 describe('graph', () => {
-  test('indexes seam → files via @partOf', async () => {
+  test('indexes concept → files via @partOf', async () => {
     const g = graph(await analyze(MINI));
-    expect(g.seamToFiles['feature:billing']).toEqual([UTIL, CONTROLLER, SERVICE]); // sorted
-    expect(g.seamToFiles['primitive:email']).toEqual(['src/jobs/sendEmail.ts']);
+    expect(g.conceptToFiles['feature:billing']).toEqual([UTIL, CONTROLLER, SERVICE]); // sorted
+    expect(g.conceptToFiles['primitive:email']).toEqual(['src/jobs/sendEmail.ts']);
   });
 
-  test('indexes seam → consumers via @uses', async () => {
+  test('indexes concept → consumers via @uses', async () => {
     const g = graph(await analyze(MINI));
     expect(g.usesConsumers['infrastructure:redis']).toEqual([SERVICE]);
     expect(g.usesConsumers['primitive:authz']).toEqual([CONTROLLER]);
   });
 
-  test('indexes file → its seams', async () => {
+  test('indexes file → its concepts', async () => {
     const g = graph(await analyze(MINI));
-    expect(g.fileToSeams[SERVICE]).toEqual({ partOf: ['feature:billing'], uses: ['infrastructure:redis'] });
+    expect(g.fileToConcepts[SERVICE]).toEqual({ partOf: ['feature:billing'], uses: ['infrastructure:redis'] });
   });
 
-  test('inverts reference fields: ticket → seams and doc → seams', async () => {
+  test('inverts reference fields: ticket → concepts and doc → concepts', async () => {
     const g = graph(await analyze(MINI));
-    expect(g.ticketToSeams['FEAT-100']).toEqual(['feature:billing']);
-    expect(g.docToSeams['EMAIL.md']).toEqual(['primitive:email']);
+    expect(g.ticketToConcepts['FEAT-100']).toEqual(['feature:billing']);
+    expect(g.docToConcepts['EMAIL.md']).toEqual(['primitive:email']);
   });
 });

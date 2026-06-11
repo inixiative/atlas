@@ -18,14 +18,14 @@ const withTempAtlas = async (files: Record<string, string>, fn: (dir: string) =>
 };
 
 describe('loadConfig — loud on misconfiguration', () => {
-  test('a present seams.ts exporting neither SEAMS nor default throws (not silently {})', async () => {
-    await withTempAtlas({ '.atlas/seams.ts': 'export const WRONG = {};\n' }, async (dir) => {
-      expect(loadConfig(dir)).rejects.toThrow(/seams\.ts/);
+  test('a present concepts.ts exporting neither CONCEPTS nor default throws (not silently {})', async () => {
+    await withTempAtlas({ '.atlas/concepts.ts': 'export const WRONG = {};\n' }, async (dir) => {
+      expect(loadConfig(dir)).rejects.toThrow(/concepts\.ts/);
     });
   });
 
-  test('a malformed seam key (no class prefix) throws', async () => {
-    await withTempAtlas({ '.atlas/seams.ts': "export const SEAMS = { tenancy: {} };\n" }, async (dir) => {
+  test('a malformed concept key (no class prefix) throws', async () => {
+    await withTempAtlas({ '.atlas/concepts.ts': "export const CONCEPTS = { tenancy: {} };\n" }, async (dir) => {
       expect(loadConfig(dir)).rejects.toThrow(/tenancy/);
     });
   });
@@ -34,7 +34,7 @@ describe('loadConfig — loud on misconfiguration', () => {
     await withTempAtlas({ 'src/x.ts': 'export const x = 1;\n' }, async (dir) => {
       const cfg = await loadConfig(dir);
       expect(cfg.kinds).toContain('controller');
-      expect(cfg.seams).toEqual({});
+      expect(cfg.concepts).toEqual({});
     });
   });
 });
@@ -44,7 +44,7 @@ describe('loadConfig', () => {
     const cfg = await loadConfig(MINI);
     expect(cfg.kinds).toContain('controller'); // atlas default
     expect(cfg.kinds).toContain('job'); // consumer extension
-    expect(cfg.seams['feature:billing']).toBeDefined();
+    expect(cfg.concepts['feature:billing']).toBeDefined();
     expect(cfg.stamp.length).toBeGreaterThan(0);
     expect(cfg.ignore).toContain('**/index.ts');
     expect(cfg.references.docs?.('BILLING.md')).toBe('docs/BILLING.md');

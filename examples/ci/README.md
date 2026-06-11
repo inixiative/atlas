@@ -68,7 +68,7 @@ git diff --exit-code MAP.md   # fails CI if the committed map is out of date
 
 ## Why not a standalone `@inixiative/atlas-ci` package?
 
-The "rules" that vary per repo (stamp rules, vocab, the seam registry) already live in the consumer's
+The "rules" that vary per repo (stamp rules, vocab, the concept registry) already live in the consumer's
 `.atlas/` folder — there is no shared executable logic to extract; a package would contain only the
 YAML above. The only future case that justifies a separate artifact is a rich **GitHub Action**
 (inline PR annotations, caching) — and that ships as its own action repo, not an npm package. Until

@@ -1,9 +1,9 @@
-import type { SeamRegistry } from '../registry/types.ts';
+import type { ConceptRegistry } from '../registry/types.ts';
 
 // `partOfFor` is a LAZY descriptor, not a value. The consumer's config.ts can
-// reference it before the seam registry is loaded; the stamp engine resolves it
+// reference it before the concept registry is loaded; the stamp engine resolves it
 // later against the loaded registry. This is what lets `.atlas/config.ts` and
-// `.atlas/seams.ts` be separate files with no evaluation-order coupling.
+// `.atlas/concepts.ts` be separate files with no evaluation-order coupling.
 export type PartOfForDescriptor = { __atlasPartOfFor: true; category: string; capture: string };
 
 // Fill @partOf by resolving a captured path segment through the inverse of a
@@ -55,5 +55,5 @@ export const defineConfig = (config: AtlasConfigInput): AtlasConfigInput => conf
 // are loaded from the sibling .atlas/ files.
 export type LoadedConfig = ConfigDefaults & {
   kinds: readonly string[];
-  seams: SeamRegistry;
+  concepts: ConceptRegistry;
 };

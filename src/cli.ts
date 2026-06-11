@@ -4,7 +4,7 @@ import { runCheck } from './commands/check.ts';
 import { coverage, evaluateCoverageGate, readBaseline } from './commands/coverage.ts';
 import { generate } from './commands/generate.ts';
 import { graph } from './commands/graph.ts';
-import { buildCoverageReport, buildSeamGraph } from './commands/report.ts';
+import { buildCoverageReport, buildConceptGraph } from './commands/report.ts';
 import { inScope, runStamp } from './commands/stamp.ts';
 import { renderCoverageHtml } from './render/html.ts';
 import { renderCoverageMarkdown } from './render/markdown.ts';
@@ -14,13 +14,13 @@ const HELP = `atlas — the map of the codebase
 Usage: atlas <command> [target] [flags]
 
 Commands:
-  graph                 reverse indexes: seam → files, file → seams, ticket/doc → seams
+  graph                 reverse indexes: concept → files, file → concepts, ticket/doc → concepts
   check [target]        presence + vocab + reference existence (the CI command);
                         a target scopes to a path and skips registry-wide reference checks
   coverage              unannotated files; @uses curation buckets; unresolved memberships
                         gate with --min <pct> and/or --ratchet (vs a committed baseline)
   generate              write MAP.md from the annotated tree
-  report                coverage gaps + seam graph → COVERAGE.md (Mermaid) and atlas.html (Cytoscape)
+  report                coverage gaps + concept graph → COVERAGE.md (Mermaid) and atlas.html (Cytoscape)
   stamp [target]        write/refresh @atlas blocks from the config rules (the patcher)
 
 Flags:
@@ -114,7 +114,7 @@ const dispatch = async (
       else if (result.ok) log('✓ atlas check passed');
       else {
         log(`${warnOnly ? '⚠' : '✗'} atlas check: ${result.problems.length} problem(s)${warnOnly ? ' — warn-only' : ''}`);
-        for (const p of result.problems) log(`  [${p.kind}] ${p.file ?? p.seam ?? ''} — ${p.message}`);
+        for (const p of result.problems) log(`  [${p.kind}] ${p.file ?? p.concept ?? ''} — ${p.message}`);
       }
       return done(result.ok || warnOnly ? 0 : 1);
     }
@@ -166,10 +166,10 @@ const dispatch = async (
       const g = graph(await analyze(root));
       if (json) log(JSON.stringify(g, null, 2));
       else {
-        log('seam → files (@partOf):');
-        for (const seam of Object.keys(g.seamToFiles).sort()) log(`  ${seam} (${g.seamToFiles[seam]!.length})`);
-        log('seam → consumers (@uses):');
-        for (const seam of Object.keys(g.usesConsumers).sort()) log(`  ${seam} (${g.usesConsumers[seam]!.length})`);
+        log('concept → files (@partOf):');
+        for (const concept of Object.keys(g.conceptToFiles).sort()) log(`  ${concept} (${g.conceptToFiles[concept]!.length})`);
+        log('concept → consumers (@uses):');
+        for (const concept of Object.keys(g.usesConsumers).sort()) log(`  ${concept} (${g.usesConsumers[concept]!.length})`);
       }
       return done(0);
     }
@@ -177,14 +177,14 @@ const dispatch = async (
     case 'report': {
       const a = await analyze(root);
       const report = buildCoverageReport(a);
-      const seamGraph = buildSeamGraph(a);
+      const conceptGraph = buildConceptGraph(a);
 
       if (json) {
-        log(JSON.stringify({ report, graph: seamGraph }, null, 2));
+        log(JSON.stringify({ report, graph: conceptGraph }, null, 2));
         return done(0);
       }
       if (flags.stdout === true) {
-        log(renderCoverageMarkdown(report, seamGraph));
+        log(renderCoverageMarkdown(report, conceptGraph));
         return done(0);
       }
 
@@ -193,11 +193,11 @@ const dispatch = async (
       const wantHtml = flags.md !== true || flags.html === true;
       const written: string[] = [];
       if (wantMd) {
-        await Bun.write(resolve(outDir, 'COVERAGE.md'), renderCoverageMarkdown(report, seamGraph));
+        await Bun.write(resolve(outDir, 'COVERAGE.md'), renderCoverageMarkdown(report, conceptGraph));
         written.push('COVERAGE.md');
       }
       if (wantHtml) {
-        await Bun.write(resolve(outDir, 'atlas.html'), renderCoverageHtml(report, seamGraph));
+        await Bun.write(resolve(outDir, 'atlas.html'), renderCoverageHtml(report, conceptGraph));
         written.push('atlas.html');
       }
       log(`✓ wrote ${written.join(', ')} (${report.total.files - report.total.missingBlock}/${report.total.files} annotated)`);
@@ -226,10 +226,10 @@ const dispatch = async (
           log(`${write ? 'Wrote' : 'Would change'} ${changes.length} file(s)${write ? '' : ' (dry-run — pass --write to apply)'}:`);
           for (const c of changes) log(`  ${c.path}`);
         }
-        // A capture that resolves to no seam leaves the file without @partOf —
+        // A capture that resolves to no concept leaves the file without @partOf —
         // surface it here so the registry gap isn't invisible at write time.
         if (unresolved.length) {
-          log(`⚠ ${unresolved.length} unresolved membership(s) — left unstamped (add the seam to .atlas/seams.ts):`);
+          log(`⚠ ${unresolved.length} unresolved membership(s) — left unstamped (add the concept to .atlas/concepts.ts):`);
           for (const u of unresolved) log(`  ${u.file}: ${u.category}:${u.value}`);
         }
       }

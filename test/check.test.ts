@@ -33,7 +33,7 @@ describe('checkVocab', () => {
       root: '/x',
       config: {
         kinds: ['controller'],
-        seams: { 'feature:billing': {} },
+        concepts: { 'feature:billing': {} },
         stamp: [],
         ignore: [],
         include: [],
@@ -61,7 +61,7 @@ describe('checkVocab', () => {
     expect(
       checkVocab({
         root: '/x',
-        config: { kinds: ['controller'], seams: { 'feature:billing': {} }, stamp: [], ignore: [], include: [], references: {} },
+        config: { kinds: ['controller'], concepts: { 'feature:billing': {} }, stamp: [], ignore: [], include: [], references: {} },
         files: [{ path: 'a.ts', annotation: ann({ kind: ['controller'], partOf: ['feature:billing'] }) }],
       }),
     ).toEqual([]);
@@ -75,7 +75,7 @@ describe('checkReferences — resolver safety', () => {
       root: '/x',
       config: {
         kinds: [],
-        seams: { 'feature:x': { docs: ['A.md'] } },
+        concepts: { 'feature:x': { docs: ['A.md'] } },
         stamp: [],
         ignore: [],
         include: [],
