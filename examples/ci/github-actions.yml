@@ -26,6 +26,15 @@ jobs:
       - name: atlas check
         run: bunx atlas check
 
+      # ── Coverage gate ───────────────────────────────────────────────────
+      # Ratchet: the unannotated count may not exceed the committed baseline
+      # (.atlas/coverage-baseline.json), so coverage can only hold or improve.
+      # Bump the baseline as you back-fill:  atlas coverage --update-baseline
+      - name: atlas coverage (ratchet)
+        run: bunx atlas coverage --ratchet
+      # Or, once coverage is high, swap the ratchet for a percentage floor:
+      #   run: bunx atlas coverage --min 80
+
       # ── MAP.md freshness ────────────────────────────────────────────────
       # The committed map must match the annotated tree, or the PR is stale.
       - name: MAP.md is current

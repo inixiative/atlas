@@ -18,6 +18,35 @@ export type Coverage = {
   unresolved: { file: string; category: string; value: string }[];
 };
 
+// A CI gate over a coverage snapshot. `min` is a percentage floor; `ratchet` is
+// a backslide guard — the unannotated count may not exceed a committed baseline,
+// which is how a repo starting near 0% enforces "every new file is annotated"
+// without demanding an unreachable percentage on day one.
+export type CoverageGate = { min?: number; ratchet?: number };
+export type GateResult = { ok: boolean; reasons: string[]; percent: number };
+
+export const evaluateCoverageGate = (c: Coverage, gate: CoverageGate): GateResult => {
+  const percent = c.total === 0 ? 100 : (c.annotated / c.total) * 100;
+  const reasons: string[] = [];
+  if (gate.min !== undefined && percent < gate.min) {
+    reasons.push(`coverage ${percent.toFixed(1)}% is below the --min ${gate.min}% floor`);
+  }
+  if (gate.ratchet !== undefined && c.unannotated.length > gate.ratchet) {
+    reasons.push(
+      `unannotated files rose to ${c.unannotated.length} (baseline ${gate.ratchet}) — annotate the new files or run --update-baseline`,
+    );
+  }
+  return { ok: reasons.length === 0, reasons, percent };
+};
+
+// Baseline file holds just the unannotated count: { "unannotated": <n> }.
+export const readBaseline = async (path: string): Promise<number | null> => {
+  const file = Bun.file(path);
+  if (!(await file.exists())) return null;
+  const data = (await file.json()) as { unannotated?: number };
+  return typeof data.unannotated === 'number' ? data.unannotated : null;
+};
+
 export const coverage = (a: Analysis): Coverage => {
   const unannotated: string[] = [];
   const uses = { uncurated: [] as string[], curatedEmpty: [] as string[], proposed: [] as string[], curated: [] as string[] };

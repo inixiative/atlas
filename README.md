@@ -133,6 +133,15 @@ atlas check <path>        # enforce only changed paths (skips registry-wide refe
 atlas check               # enforce the whole repo
 ```
 
+Gate **coverage** the same way — a percentage floor or a ratchet that forbids regressions
+(ideal for a repo starting near 0%):
+
+```bash
+atlas coverage --min 80          # fail below 80% annotated
+atlas coverage --ratchet         # fail if unannotated count exceeds .atlas/coverage-baseline.json
+atlas coverage --update-baseline # record the current count (commit the baseline)
+```
+
 ## Enforcement: existence, NOT correctness
 
 `atlas check` verifies annotations **exist and use valid vocabulary** — presence of a block, that

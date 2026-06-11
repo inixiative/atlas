@@ -5,7 +5,7 @@ on any problem). These are copy-paste examples for wiring it in. Pick the ones y
 
 | File | What it does |
 |------|--------------|
-| [`github-actions.yml`](./github-actions.yml) | Full-repo check + `MAP.md` freshness gate (push/PR) |
+| [`github-actions.yml`](./github-actions.yml) | Full-repo check + coverage ratchet + `MAP.md` freshness gate (push/PR) |
 | [`github-actions-incremental.yml`](./github-actions-incremental.yml) | Check only the paths changed in a PR |
 | [`pre-commit`](./pre-commit) | Local git hook: check staged source dirs before commit |
 
@@ -22,6 +22,27 @@ flip the switch gradually:
 3. **Fully enforcing** — once coverage is high, drop to plain `atlas check` on the whole repo.
 
 Track progress between phases with `atlas coverage`.
+
+## Coverage gate
+
+`atlas coverage` exits non-zero when a gate fails, so it drops into CI like `check`. Two styles:
+
+```bash
+atlas coverage --min 80     # percentage floor — fail below 80% annotated
+atlas coverage --ratchet    # backslide guard — unannotated count may not exceed the baseline
+```
+
+The **ratchet** is the right gate for a repo starting near 0%: instead of demanding an unreachable
+percentage, it forbids regressions. Commit a baseline, then tighten it as you back-fill:
+
+```bash
+atlas coverage --update-baseline   # writes .atlas/coverage-baseline.json  (commit this)
+git add .atlas/coverage-baseline.json
+```
+
+In CI, `atlas coverage --ratchet` then fails any PR that adds unannotated files. Re-run
+`--update-baseline` and commit whenever you lower the count, so it only moves one direction.
+Switch to `--min` once coverage is high enough to hold a percentage.
 
 ## Keep `MAP.md` honest
 
