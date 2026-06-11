@@ -48,15 +48,15 @@ describe('invert', () => {
     expect(invert(registry, 'module').emailBridge).toEqual(['feature:email', 'primitive:appEvents']);
   });
 
-  test('inverts any consumer-defined field, including references (ticket → concepts)', () => {
+  test('inverts any consumer-defined field, including references (doc → concepts)', () => {
     const registry = {
-      'feature:inquiry': { tickets: ['FEAT-001'] },
-      'feature:nesting': { tickets: ['FEAT-001', 'FEAT-016'] },
+      'feature:inquiry': { docs: ['INQUIRY.md'] },
+      'feature:nesting': { docs: ['INQUIRY.md', 'NESTING.md'] },
     };
-    expect(invert(registry, 'tickets')['FEAT-001']).toEqual(['feature:inquiry', 'feature:nesting']);
+    expect(invert(registry, 'docs')['INQUIRY.md']).toEqual(['feature:inquiry', 'feature:nesting']);
   });
 
   test('returns an empty object when no concept declares the field', () => {
-    expect(invert({ 'feature:x': { module: ['a'] } }, 'tickets')).toEqual({});
+    expect(invert({ 'feature:x': { module: ['a'] } }, 'docs')).toEqual({});
   });
 });

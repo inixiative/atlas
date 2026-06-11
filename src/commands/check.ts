@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import type { Analysis } from '../analyze.ts';
 
 // Enforcement is EXISTENCE, not correctness: presence of a block, validity of
-// the vocabulary used, and existence of referenced docs/tickets. atlas never
+// the vocabulary used, and existence of referenced docs. atlas never
 // checks "is this @partOf actually true" or any derived status — fool's errands.
 export type Problem = {
   kind: 'presence' | 'vocab' | 'reference';
@@ -36,7 +36,7 @@ export const checkVocab = (a: Analysis): Problem[] => {
   return problems;
 };
 
-// reference existence — a concept's doc/ticket paths resolve to real files.
+// reference existence — a concept's doc paths resolve to real files.
 export const checkReferences = async (a: Analysis): Promise<Problem[]> => {
   const problems: Problem[] = [];
   for (const [concept, entry] of Object.entries(a.config.concepts)) {

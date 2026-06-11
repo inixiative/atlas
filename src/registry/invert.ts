@@ -4,8 +4,7 @@ import type { ConceptRegistry } from './types.ts';
 // (concept → values of a field) derive the inverse (value → concept keys).
 //
 //   invert(concepts, 'module')  → module → concept[]  (drives @partOf stamping)
-//   invert(concepts, 'tickets') → ticket → concept[]  ("what does FEAT-001 touch")
-//   invert(concepts, 'docs')    → doc → concept[]
+//   invert(concepts, 'docs')    → doc → concept[]      ("which concepts does AUTH.md cover")
 //
 // Concept-key lists are sorted for deterministic, diff-stable output.
 export const invert = (registry: ConceptRegistry, field: string): Record<string, string[]> => {

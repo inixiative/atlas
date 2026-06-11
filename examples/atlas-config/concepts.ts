@@ -6,16 +6,17 @@ import type { ConceptRegistry } from '@inixiative/atlas';
 // choice, derived from these keys, not hardcoded by atlas.
 //
 // Each entry is a bag of named string lists you define:
-//   - reference fields (docs, tickets) — where to read about the concept; checked
-//     for existence by `atlas check` if you wire a resolver in config.ts, and
-//     invertible (ticket → concepts, doc → concepts).
+//   - reference fields (docs) — where to read about the concept; checked for
+//     existence by `atlas check` if you wire a resolver in config.ts, and
+//     invertible (doc → concepts). Keep references in-repo and stable — don't
+//     point at fast-moving external IDs (e.g. ticket numbers) that rot.
 //   - constituent fields (module, package, integration) — the code that COMPOSES
 //     the concept. These fill @partOf during `atlas stamp` via partOfFor(...).
 //
 // A module/package routinely belongs to several concepts — multi-@partOf is normal.
 export const CONCEPTS: ConceptRegistry = {
   // ── features (user-facing capabilities) ───────────────────────────────────
-  'feature:tenancy': { module: ['organization', 'space', 'membership'], docs: ['AUTH.md'], tickets: ['AUTH-002'] },
+  'feature:tenancy': { module: ['organization', 'space', 'membership'], docs: ['AUTH.md'] },
   'feature:billing': { module: ['billing', 'invoicing'], docs: ['BILLING.md'] },
   'feature:users': { module: ['user', 'profile'] },
   'feature:email': { package: ['email'], integration: ['sendgrid'], docs: ['COMMUNICATIONS.md'] },

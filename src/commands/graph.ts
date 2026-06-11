@@ -3,12 +3,11 @@ import { invert } from '../registry/invert.ts';
 
 // The bidirectional indexes — "show me everything that touches caching" in one
 // traversal. concept→files and concept→consumers come from the annotated tree;
-// ticket→concepts and doc→concepts come from inverting the registry's reference fields.
+// doc→concepts comes from inverting the registry's `docs` reference field.
 export type Graph = {
   conceptToFiles: Record<string, string[]>; // via @partOf (membership)
   usesConsumers: Record<string, string[]>; // via @uses (dependency)
   fileToConcepts: Record<string, { partOf: string[]; uses: string[] }>;
-  ticketToConcepts: Record<string, string[]>;
   docToConcepts: Record<string, string[]>;
 };
 
@@ -34,7 +33,6 @@ export const graph = (a: Analysis): Graph => {
     conceptToFiles,
     usesConsumers,
     fileToConcepts,
-    ticketToConcepts: invert(a.config.concepts, 'tickets'),
     docToConcepts: invert(a.config.concepts, 'docs'),
   };
 };

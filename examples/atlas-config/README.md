@@ -14,7 +14,7 @@ owns the concept registry.**
 The key idea: atlas hardcodes **no** concept classes (`feature`/`primitive`/…) and **no** constituent
 categories (`module`/`package`/`integration`/…). *You* define them — they're just the keys you use
 in `concepts.ts` and reference from `config.ts`. atlas only validates that a `@partOf`/`@uses` names a
-concept that exists, that a `@kind` is in your vocab, and that referenced docs/tickets resolve.
+concept that exists, that a `@kind` is in your vocab, and that referenced docs resolve.
 
 | File | You edit it… | Notes |
 |------|--------------|-------|

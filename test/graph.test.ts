@@ -26,9 +26,8 @@ describe('graph', () => {
     expect(g.fileToConcepts[SERVICE]).toEqual({ partOf: ['feature:billing'], uses: ['infrastructure:redis'] });
   });
 
-  test('inverts reference fields: ticket → concepts and doc → concepts', async () => {
+  test('inverts the docs reference field: doc → concepts', async () => {
     const g = graph(await analyze(MINI));
-    expect(g.ticketToConcepts['FEAT-100']).toEqual(['feature:billing']);
     expect(g.docToConcepts['EMAIL.md']).toEqual(['primitive:email']);
   });
 });

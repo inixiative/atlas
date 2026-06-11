@@ -1,9 +1,8 @@
 // A concept entry is a generic bag of named string lists. atlas hardcodes NO
-// field names — the CONSUMER defines its categories (docs, tickets, module,
-// integration, package, …). Reference categories (e.g. docs/tickets) drive the
-// doc→concept / ticket→concept inversions; constituent categories (e.g. module)
-// fill @partOf during stamping. That distinction lives in the consuming repo's
-// config, never in atlas.
+// field names — the CONSUMER defines its categories (docs, module, integration,
+// package, …). Reference categories (e.g. docs) drive the doc→concept inversion;
+// constituent categories (e.g. module) fill @partOf during stamping. That
+// distinction lives in the consuming repo's config, never in atlas.
 export type ConceptEntry = Record<string, string[]>;
 
 // Keyed `class:name` (e.g. 'feature:tenancy'). The single source of valid concepts.

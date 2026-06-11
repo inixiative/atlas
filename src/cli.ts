@@ -14,7 +14,7 @@ const HELP = `atlas — the map of the codebase
 Usage: atlas <command> [target] [flags]
 
 Commands:
-  graph                 reverse indexes: concept → files, file → concepts, ticket/doc → concepts
+  graph                 reverse indexes: concept → files, file → concepts, doc → concepts
   check [target]        presence + vocab + reference existence (the CI command);
                         a target scopes to a path and skips registry-wide reference checks
   coverage              unannotated files; @uses curation buckets; unresolved memberships

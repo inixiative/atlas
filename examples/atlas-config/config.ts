@@ -27,8 +27,8 @@ export default defineConfig({
   ],
 
   // Resolve a reference field's value to a repo-relative path so `atlas check`
-  // can verify it exists. Only fields with a resolver here are existence-checked;
-  // others (e.g. tickets with slugged filenames) are kept for invert() only.
+  // can verify it exists. Keep references in-repo and stable (docs), not
+  // fast-moving external IDs that rot.
   references: {
     docs: (v) => `docs/${v}`,
   },

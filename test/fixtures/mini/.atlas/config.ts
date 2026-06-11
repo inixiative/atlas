@@ -11,6 +11,5 @@ export default defineConfig({
   ],
   references: {
     docs: (v) => `docs/${v}`,
-    tickets: (v) => `tickets/${v}.md`,
   },
 });

@@ -34,7 +34,7 @@ export type StampRule = {
   // leaves it out entirely. There is intentionally no `uses` field here.
 };
 
-// field name (e.g. 'docs', 'tickets') → a value's repo-relative path, so
+// field name (e.g. 'docs') → a value's repo-relative path, so
 // `atlas check` can verify the reference exists on disk.
 export type ReferenceResolver = (value: string) => string;
 

@@ -79,7 +79,7 @@ A complete, commented set you can copy into your repo's `.atlas/` is in
 ## CLI
 
 ```bash
-atlas graph       # reverse indexes: concept → files, file → concepts, ticket/doc → concepts
+atlas graph       # reverse indexes: concept → files, file → concepts, doc → concepts
 atlas check       # presence + vocab existence + reference existence  (the CI command)
 atlas coverage    # unannotated files; @uses curation buckets; unresolved memberships
 atlas generate    # write MAP.md from the annotated tree
@@ -178,7 +178,7 @@ atlas coverage --update-baseline # record the current count (commit the baseline
 
 `atlas check` verifies annotations **exist and use valid vocabulary** — presence of a block, that
 `@kind` is in the vocab, that `@partOf`/`@uses` name a concept that exists, and that a
-concept's doc/ticket references resolve. It explicitly does **not** reconcile the import graph, judge
+concept's doc references resolve. It explicitly does **not** reconcile the import graph, judge
 whether a `@partOf` is "really true," or derive any status. Those are fool's errands that trade a
 clear structural guarantee for a fragile proxy.
 
