@@ -72,6 +72,32 @@ describe('checkVocab', () => {
   });
 });
 
+describe('checkReferences — resolver safety', () => {
+  test('a throwing reference resolver becomes a reference problem, not a crash', async () => {
+    const { checkReferences } = await import('../src/commands/check.ts');
+    const problems = await checkReferences({
+      root: '/x',
+      config: {
+        kinds: [],
+        concerns: [],
+        seams: { 'feature:x': { docs: ['A.md'] } },
+        stamp: [],
+        ignore: [],
+        include: [],
+        references: {
+          docs: () => {
+            throw new Error('boom');
+          },
+        },
+      },
+      files: [],
+    });
+    expect(problems.length).toBe(1);
+    expect(problems[0]?.kind).toBe('reference');
+    expect(problems[0]?.message).toContain('boom');
+  });
+});
+
 describe('runCheck (against the fixture)', () => {
   test('reports the missing block and the dangling doc reference, but no vocab errors', async () => {
     const result = await runCheck(await analyze(MINI));

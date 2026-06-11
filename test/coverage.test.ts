@@ -26,8 +26,13 @@ describe('evaluateCoverageGate', () => {
     expect(evaluateCoverageGate(snapshot(5, 5), { ratchet: 1 }).ok).toBe(true); // improved to 0
   });
 
-  test('an empty repo is 100% and passes any gate', () => {
-    expect(evaluateCoverageGate(snapshot(0, 0), { min: 100, ratchet: 0 }).ok).toBe(true);
+  test('an active gate over zero files FAILS (almost always a misconfig, not real 100%)', () => {
+    expect(evaluateCoverageGate(snapshot(0, 0), { min: 50 }).ok).toBe(false);
+    expect(evaluateCoverageGate(snapshot(0, 0), { ratchet: 0 }).ok).toBe(false);
+  });
+
+  test('zero files with NO active gate is not a failure', () => {
+    expect(evaluateCoverageGate(snapshot(0, 0), {}).ok).toBe(true);
   });
 });
 

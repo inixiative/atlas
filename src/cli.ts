@@ -51,8 +51,12 @@ const parseArgs = (args: string[]): { flags: Flags; positionals: string[] } => {
     const a = args[i]!;
     if (a.startsWith('--')) {
       const key = a.slice(2);
-      if (VALUE_FLAGS.has(key)) flags[key] = args[++i] ?? '';
-      else flags[key] = true;
+      if (VALUE_FLAGS.has(key)) {
+        // Don't swallow the next flag as a value: `--min --json` leaves min empty
+        // (caught downstream) rather than silently capturing '--json'.
+        const next = args[i + 1];
+        flags[key] = next !== undefined && !next.startsWith('--') ? (i++, next) : '';
+      } else flags[key] = true;
     } else positionals.push(a);
   }
   return { flags, positionals };
@@ -76,6 +80,28 @@ export const runCli = async (argv: string[], env: { cwd: string }): Promise<{ co
   if (flags.version === true) return { code: 0, out: await version() };
   if (flags.help === true || command === undefined || command === 'help') return { code: 0, out: HELP };
 
+  // Error boundary: any thrown error (bad config, IO, corrupt baseline) becomes a
+  // clean one-line message + exit 1, never an unhandled rejection / stack trace.
+  try {
+    return await dispatch(command, positionals, flags, { root, json, log, done });
+  } catch (err) {
+    return { code: 1, out: `atlas: ${err instanceof Error ? err.message : String(err)}` };
+  }
+};
+
+type Ctx = {
+  root: string;
+  json: boolean;
+  log: (s?: string) => void;
+  done: (code: number) => { code: number; out: string };
+};
+
+const dispatch = async (
+  command: string,
+  positionals: string[],
+  flags: Flags,
+  { root, json, log, done }: Ctx,
+): Promise<{ code: number; out: string }> => {
   switch (command) {
     case 'check': {
       const target = positionals[1];
@@ -112,7 +138,14 @@ export const runCli = async (argv: string[], env: { cwd: string }): Promise<{ co
         }
         ratchet = baseline;
       }
-      const min = flags.min !== undefined ? Number(flags.min) : undefined;
+      let min: number | undefined;
+      if (flags.min !== undefined) {
+        min = Number(flags.min);
+        if (flags.min === '' || !Number.isFinite(min)) {
+          log(`✗ --min expects a number, got '${flags.min}'`);
+          return done(1);
+        }
+      }
       const gate = evaluateCoverageGate(c, { min, ratchet });
       const gating = min !== undefined || ratchet !== undefined;
 

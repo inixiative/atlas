@@ -45,7 +45,16 @@ export const checkReferences = async (a: Analysis): Promise<Problem[]> => {
   for (const [seam, entry] of Object.entries(a.config.seams)) {
     for (const [field, resolver] of Object.entries(a.config.references)) {
       for (const value of entry[field] ?? []) {
-        const rel = resolver(value);
+        // The resolver is consumer code — a throw becomes a structured problem,
+        // never an unhandled crash of the whole check.
+        let rel: string;
+        try {
+          rel = resolver(value);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          problems.push({ kind: 'reference', seam, message: `${seam}: ${field} resolver threw on '${value}': ${msg}` });
+          continue;
+        }
         if (!(await Bun.file(resolve(a.root, rel)).exists())) {
           problems.push({ kind: 'reference', seam, message: `${seam}: ${field} reference '${value}' → ${rel} does not exist` });
         }

@@ -28,6 +28,12 @@ export type GateResult = { ok: boolean; reasons: string[]; percent: number };
 export const evaluateCoverageGate = (c: Coverage, gate: CoverageGate): GateResult => {
   const percent = c.total === 0 ? 100 : (c.annotated / c.total) * 100;
   const reasons: string[] = [];
+  const gating = gate.min !== undefined || gate.ratchet !== undefined;
+  // Zero files under an active gate is almost always a misconfig (wrong --root,
+  // an include that matched nothing), not a real 100% — fail rather than pass.
+  if (gating && c.total === 0) {
+    reasons.push('0 files matched — check --root / include / ignore');
+  }
   if (gate.min !== undefined && percent < gate.min) {
     reasons.push(`coverage ${percent.toFixed(1)}% is below the --min ${gate.min}% floor`);
   }
@@ -43,7 +49,12 @@ export const evaluateCoverageGate = (c: Coverage, gate: CoverageGate): GateResul
 export const readBaseline = async (path: string): Promise<number | null> => {
   const file = Bun.file(path);
   if (!(await file.exists())) return null;
-  const data = (await file.json()) as { unannotated?: number };
+  let data: { unannotated?: number };
+  try {
+    data = (await file.json()) as { unannotated?: number };
+  } catch {
+    throw new Error(`baseline at ${path} is not valid JSON — re-run: atlas coverage --update-baseline`);
+  }
   return typeof data.unannotated === 'number' ? data.unannotated : null;
 };
 

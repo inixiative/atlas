@@ -68,6 +68,36 @@ describe('runCli', () => {
     expect(JSON.parse(out).seamToFiles['feature:billing']).toBeDefined();
   });
 
+  test('coverage --min with a non-numeric value errors instead of silently disabling the gate', async () => {
+    const { code, out } = await runCli(['coverage', '--min', 'abc'], { cwd: MINI });
+    expect(code).toBe(1);
+    expect(out.toLowerCase()).toContain('--min');
+  });
+
+  test('an active gate over zero matched files fails (misconfig guard)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'atlas-empty-'));
+    try {
+      await Bun.write(join(dir, 'readme.txt'), 'no source here\n'); // no .ts files
+      const { code, out } = await runCli(['coverage', '--min', '50'], { cwd: dir });
+      expect(code).toBe(1);
+      expect(out.toLowerCase()).toContain('0');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('a misconfigured .atlas surfaces as a clean error + exit 1, not a stack trace', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'atlas-bad-'));
+    try {
+      await Bun.write(join(dir, '.atlas/seams.ts'), 'export const WRONG = {};\n');
+      const { code, out } = await runCli(['check'], { cwd: dir });
+      expect(code).toBe(1);
+      expect(out).toContain('seams.ts');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test('report --stdout prints the coverage markdown', async () => {
     const { code, out } = await runCli(['report', '--stdout'], { cwd: MINI });
     expect(code).toBe(0);
