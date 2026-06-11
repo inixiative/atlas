@@ -35,11 +35,13 @@ export const loadConfig = async (root: string): Promise<LoadedConfig> => {
   const concepts = named<ConceptRegistry>(conceptsMod, 'concepts.ts', 'CONCEPTS', 'default') ?? {};
   const cfg = named<AtlasConfigInput>(configMod, 'config.ts', 'default', 'config') ?? {};
 
-  // Concept keys are `class:name`; a malformed key would silently degrade to an
-  // 'other'/'(unmapped)' bucket downstream, so reject it at load.
+  // Concept keys are either `class:name` (a layer member) or a bare classless
+  // tag (a derived cross-cutting marker like `superadmin`). Reject only a key
+  // with an empty class or name side — that's a typo, not a deliberate shape.
   for (const key of Object.keys(concepts)) {
-    if (key.indexOf(':') <= 0) {
-      throw new Error(`.atlas/concepts.ts: malformed concept key '${key}' — expected 'class:name'`);
+    const colon = key.indexOf(':');
+    if (key.length === 0 || colon === 0 || colon === key.length - 1) {
+      throw new Error(`.atlas/concepts.ts: malformed concept key '${key}' — use 'class:name' or a bare tag`);
     }
   }
 

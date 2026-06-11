@@ -24,9 +24,16 @@ describe('loadConfig — loud on misconfiguration', () => {
     });
   });
 
-  test('a malformed concept key (no class prefix) throws', async () => {
-    await withTempAtlas({ '.atlas/concepts.ts': "export const CONCEPTS = { tenancy: {} };\n" }, async (dir) => {
-      expect(loadConfig(dir)).rejects.toThrow(/tenancy/);
+  test('a bare classless tag is allowed (e.g. a derived cross-cutting marker)', async () => {
+    await withTempAtlas({ '.atlas/concepts.ts': "export const CONCEPTS = { superadmin: {}, 'feature:x': {} };\n" }, async (dir) => {
+      const cfg = await loadConfig(dir);
+      expect(cfg.concepts.superadmin).toBeDefined();
+    });
+  });
+
+  test('a key with an empty class or name side throws', async () => {
+    await withTempAtlas({ '.atlas/concepts.ts': "export const CONCEPTS = { 'feature:': {} };\n" }, async (dir) => {
+      expect(loadConfig(dir)).rejects.toThrow(/feature:/);
     });
   });
 
