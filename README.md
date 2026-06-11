@@ -131,6 +131,26 @@ calls; agents left to `grep` took 2–3× as many and risk missing the transitiv
 
 All axes are multi-valued (comma-separated on one line). `@atlas` opens the block.
 
+### Writing a block (for agents & humans)
+
+A top-of-file JSDoc block, above the imports (below a shebang if present):
+
+```ts
+/**
+ * @atlas
+ * @kind controller
+ * @partOf feature:billing, superadmin
+ * @uses primitive:authz, infrastructure:redis
+ */
+```
+
+Rules of thumb:
+- **`@kind` is a ROLE, never a layer.** Use the file's role(s) from the vocab. Never put `feature`/`primitive`/`infrastructure` in `@kind` — those are concept *classes*, expressed via `@partOf`. A file can hold several roles (`constructor, registry`).
+- **`@partOf` is membership** — the concept(s) this file *composes* (remove it and the concept breaks). Multiple is normal and expected: a feature has **many** controllers/routes/**entrypoints**; a file can be part of a feature *and* a cross-cutting tag (`feature:inquiry, superadmin`). The reusable helpers that build something belong to it — e.g. `makeController` and the route-template helper services are all `@partOf primitive:routeTemplates`.
+- **`@uses` is dependency, LOAD-BEARING only** — a concept this file depends on but isn't part of, where someone reasoning about that concept's blast radius needs this file. Not every import. Skip incidental touches (one `db.x.update()` through the request context is not "using" the database). Write `@uses none` only after a human/agent looked and it genuinely uses nothing load-bearing; otherwise omit the line (= uncurated).
+- **Validate names against the repo's `.atlas/`** — `@kind` ∈ `kinds.ts`; `@partOf`/`@uses` must name a concept that exists in `concepts.ts`.
+- **Prefer several broad-true tags over one narrow tag** — meaning emerges from the intersection of true edges, not from one hyper-specific label.
+
 ### `@uses` is never auto-stamped
 
 Absence is meaningful, so atlas leaves `@uses` out of stamping entirely:
