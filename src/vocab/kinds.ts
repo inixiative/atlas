@@ -21,6 +21,7 @@ export const DEFAULT_KINDS = [
   'handler', // handler — pair with @partOf (jobs, app-events, db mutation hooks)
   'helper', // small focused helper bound to a concept (vs generic `utils`)
   'service', // domain logic in modules/*/services and internal module parts
+  'query', // a db query builder / include / select shape (modules/*/queries)
   'schema', // request/response schemas in modules/*/schemas
   'validator', // modules/*/validations
   'transformer', // value/shape transformers (serialize, normalize, project)

@@ -14,9 +14,12 @@ export default defineConfig({
     { include: '**/controllers/**', kind: 'controller' },
     { include: '**/routes/**', kind: 'route' },
     { include: '**/services/**', kind: 'service' },
+    { include: '**/queries/**', kind: 'query' },
     { include: '**/schemas/**', kind: 'schema' },
     { include: '**/handlers/**', kind: 'handler' },
     { include: '**/jobs/**', kind: 'job' },
+    { include: ['**/constants/**', '**/constants.ts'], kind: 'constant' },
+    { include: ['**/utils/**', '**/utils.ts'], kind: 'utils' },
 
     // @partOf from a captured path segment, resolved through your constituent
     // categories in concepts.ts. `$1` captures one segment; `partOfFor('module', '$1')`
