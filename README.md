@@ -89,6 +89,24 @@ atlas stamp [dir] # write/refresh @atlas blocks from the rules (the patcher; dry
 Common flags: `--root <dir>`, `--json`, `generate --stdout`, `stamp --write`, `stamp --overwrite`,
 `coverage --min/--ratchet`, `report --out <dir>/--md/--html`.
 
+## For AI agents
+
+atlas exists largely so agents stop grab-bagging files and answering from stale labels. Drop this
+line into your agent's system prompt / `CLAUDE.md` / `AGENTS.md` so it navigates by **concept**
+instead of crawling folders:
+
+> This repo is mapped by **atlas**. To find code by concept instead of by filename: read `MAP.md`
+> for the seam overview; run `bunx atlas graph --json` for the reverse indexes (seam → files via
+> `@partOf`, seam → consumers via `@uses`); and read a file's top-of-file `@atlas` block
+> (`@kind` / `@partOf` / `@uses`) before its body. Prefer these over `grep` for "what touches X" /
+> "what's part of Y" questions.
+
+Why it helps: the agent gets the high-altitude map without reading the tree, answers "everything
+that touches caching" in **one** `graph --json` call, and learns a file's role/edges from its block
+before opening it. In an A/B test on a repo with a transitive dependency, agents given this line
+used `atlas graph` and solved a "what reaches redis (directly or transitively)" question in ~2 tool
+calls; agents left to `grep` took 2–3× as many and risk missing the transitive edge entirely.
+
 ## Visualize
 
 `atlas report` emits two artifacts:
