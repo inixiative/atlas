@@ -1,6 +1,12 @@
 import type { CoverageReport, Gaps, SeamGraph } from '../commands/report.ts';
 
-const safeId = (id: string): string => id.replace(/[^a-zA-Z0-9]/g, '_');
+// Injective sanitizer for Mermaid node ids: distinct seam ids never collide
+// (encoding the char code keeps `feature:billing` and `feature.billing` apart).
+export const safeId = (id: string): string => id.replace(/[^a-zA-Z0-9]/g, (c) => `_${c.charCodeAt(0)}_`);
+
+// Escape a Mermaid quoted-label so a `"` in a seam id can't break the diagram
+// or inject directives.
+const safeLabel = (s: string): string => s.replace(/"/g, '&quot;');
 
 const totalsTable = (t: Gaps): string =>
   [
@@ -39,7 +45,7 @@ const seamGraph = (graph: SeamGraph): string => {
   for (const n of graph.nodes) (byClass[n.cls] ??= []).push(n);
   for (const cls of Object.keys(byClass).sort()) {
     lines.push(`  subgraph ${cls}`);
-    for (const n of byClass[cls]!) lines.push(`    ${safeId(n.id)}["${n.id}"]`);
+    for (const n of byClass[cls]!) lines.push(`    ${safeId(n.id)}["${safeLabel(n.id)}"]`);
     lines.push('  end');
   }
   for (const e of graph.edges) lines.push(`  ${safeId(e.source)} --> ${safeId(e.target)}`);
@@ -65,6 +71,9 @@ export const renderCoverageMarkdown = (report: CoverageReport, graph: SeamGraph)
     '',
     'Grouped by effective seam (declared `@partOf`, else the rules’ predicted seam). `@uses` columns',
     'are curation signals, not failures.',
+    ...(report.filesInMultipleSeams > 0
+      ? ['', `> ${report.filesInMultipleSeams} file(s) belong to multiple seams, so the per-category file counts sum to more than the total.`]
+      : []),
     '',
     categoryTable(report),
     '',

@@ -25,6 +25,30 @@ describe('buildCoverageReport', () => {
     expect(by['primitive:email']?.usesCuratedEmpty).toBe(1);
     expect(by['(unmapped)']?.missingBlock).toBe(1); // legacy.ts has no rule-predicted seam
   });
+
+  test('reports filesInMultipleSeams so category sums exceeding the total are explained', async () => {
+    const report = buildCoverageReport({
+      root: '/x',
+      config: { kinds: [], concerns: [], seams: { 'feature:a': {}, 'feature:b': {} }, stamp: [], ignore: [], include: [], references: {} },
+      files: [
+        {
+          path: 'x.ts',
+          annotation: {
+            kind: ['service'],
+            partOf: ['feature:a', 'feature:b'],
+            uses: [],
+            usesState: 'absent',
+            concern: [],
+            constructs: [],
+            pinned: false,
+            axes: {},
+          },
+        },
+      ],
+    });
+    expect(report.total.files).toBe(1);
+    expect(report.filesInMultipleSeams).toBe(1); // the one file is counted in both feature:a and feature:b
+  });
 });
 
 describe('buildSeamGraph', () => {
