@@ -26,6 +26,10 @@ export default defineConfig({
     { include: ['**/client.ts', '**/*.client.ts'], kind: 'client' },
     { include: '**/*.config.ts', kind: 'config' },
     { include: ['**/seed.ts', '**/*.seed.ts', '**/seeds/**'], kind: 'seed' },
+    { include: '**/bridges/**', kind: 'bridge' },
+    { include: '**/defs/**', kind: 'definition' },
+    { include: '**/*Error.ts', kind: 'error' },
+    { include: '**/generate*.ts', kind: 'generator' },
     // frontend (UI library + apps): components, hooks, file-based routes (pages), stores, bootstrap
     { include: '**/components/**', kind: 'component' },
     { include: ['packages/ui/**/hooks/**', 'apps/*/**/hooks/**'], kind: 'hook' }, // React hooks (not api db-hooks)
