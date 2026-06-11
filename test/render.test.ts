@@ -68,6 +68,14 @@ describe('renderCoverageHtml', () => {
     expect(data.report.total.files).toBe(5);
   });
 
+  test('uses Cytoscape-parseable colours (comma-form hsl, no 4-digit alpha hex)', async () => {
+    const a = await analyze(MINI);
+    const html = renderCoverageHtml(buildCoverageReport(a), buildSeamGraph(a));
+    expect(html).toContain(', 65%, 45%)'); // comma-form hsl Cytoscape accepts
+    expect(html).not.toContain(' 65% 45%)'); // the space-separated form it rejects → grey nodes
+    expect(html).not.toMatch(/#[0-9a-fA-F]{4}\b/); // no 4-digit alpha hex (Cytoscape can't parse it)
+  });
+
   test('escapes < in embedded JSON so a seam id cannot break out of the script tag', () => {
     const graph: SeamGraph = { nodes: [{ id: 'feature:</script>', cls: 'feature', label: 'x' }], edges: [] };
     const html = renderCoverageHtml(emptyReport, graph);

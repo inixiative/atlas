@@ -22,15 +22,15 @@ export const renderCoverageHtml = (report: CoverageReport, graph: SeamGraph): st
   * { box-sizing: border-box; }
   body { margin: 0; font: 14px/1.4 system-ui, sans-serif; display: flex; height: 100vh; }
   #cy { flex: 1; height: 100%; }
-  #panel { width: 340px; border-left: 1px solid #8884; padding: 16px; overflow: auto; }
+  #panel { width: 340px; border-left: 1px solid rgba(136,136,136,.27); padding: 16px; overflow: auto; }
   #panel h1 { font-size: 15px; margin: 0 0 4px; }
   #panel .sub { opacity: .6; margin: 0 0 16px; font-size: 12px; }
-  .bar { height: 8px; border-radius: 4px; background: #8883; overflow: hidden; margin: 6px 0 14px; }
+  .bar { height: 8px; border-radius: 4px; background: rgba(136,136,136,.2); overflow: hidden; margin: 6px 0 14px; }
   .bar > i { display: block; height: 100%; background: #2e9e54; }
   table { border-collapse: collapse; width: 100%; font-size: 12px; }
   td { padding: 2px 0; } td.n { text-align: right; font-variant-numeric: tabular-nums; }
   ul.files { list-style: none; padding: 0; margin: 8px 0 0; font-size: 12px; }
-  ul.files li { padding: 2px 0; border-bottom: 1px solid #8882; word-break: break-all; }
+  ul.files li { padding: 2px 0; border-bottom: 1px solid rgba(136,136,136,.13); word-break: break-all; }
   .hint { opacity: .55; font-size: 12px; }
 </style>
 </head>
@@ -42,7 +42,9 @@ export const renderCoverageHtml = (report: CoverageReport, graph: SeamGraph): st
   const { report, graph } = JSON.parse(document.getElementById('atlas-data').textContent);
   const byCat = Object.fromEntries(report.categories.map((c) => [c.category, c]));
   const cov = (id) => { const c = byCat[id]; return c && c.files ? (c.files - c.missingBlock) / c.files : 0; };
-  const color = (r) => 'hsl(' + Math.round(r * 120) + ' 65% 45%)'; // red→green
+  // Comma-form hsl() — Cytoscape's colour parser rejects the space-separated
+  // CSS Color-4 form and silently falls back to grey. Guard non-finite too.
+  const color = (r) => 'hsl(' + (Number.isFinite(r) ? Math.round(r * 120) : 0) + ', 65%, 45%)'; // red→green
 
   const classes = [...new Set(graph.nodes.map((n) => n.cls))];
   const elements = [
@@ -57,14 +59,17 @@ export const renderCoverageHtml = (report: CoverageReport, graph: SeamGraph): st
     style: [
       { selector: 'node', style: { 'label': 'data(label)', 'font-size': 11, 'text-valign': 'center', 'color': '#fff',
         'background-color': (n) => color(n.data('cov')), 'width': 46, 'height': 46 } },
-      { selector: 'node.group', style: { 'background-opacity': 0.06, 'border-width': 1, 'border-color': '#8886',
-        'text-valign': 'top', 'color': '#888', 'font-size': 12, 'shape': 'round-rectangle', 'padding': 14 } },
-      { selector: 'edge', style: { 'width': 1.5, 'line-color': '#8888', 'target-arrow-color': '#8888',
+      // group (compound) nodes carry no cov — give them a neutral fill, not the NaN mapper result.
+      { selector: 'node.group', style: { 'background-color': '#888888', 'background-opacity': 0.06, 'border-width': 1,
+        'border-color': 'rgba(136,136,136,.4)', 'text-valign': 'top', 'color': '#888888', 'font-size': 12,
+        'shape': 'round-rectangle', 'padding': 18 } },
+      { selector: 'edge', style: { 'width': 1.5, 'line-color': 'rgba(136,136,136,.53)', 'target-arrow-color': 'rgba(136,136,136,.53)',
         'target-arrow-shape': 'triangle', 'curve-style': 'bezier' } },
       { selector: '.faded', style: { 'opacity': 0.12 } },
       { selector: '.hl', style: { 'line-color': '#e8a33d', 'target-arrow-color': '#e8a33d', 'width': 2.5, 'opacity': 1 } },
     ],
-    layout: { name: 'cose', animate: false, padding: 30, nodeRepulsion: 9000, idealEdgeLength: 90 },
+    layout: { name: 'cose', animate: false, padding: 40, nodeRepulsion: 24000, idealEdgeLength: 120,
+      nodeDimensionsIncludeLabels: true, componentSpacing: 140, gravity: 0.25, fit: true },
   });
   window.cy = cy; // exposed for inspection / testing
 
