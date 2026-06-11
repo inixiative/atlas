@@ -6,10 +6,12 @@
 // force this list on anyone. These are near-universal file roles.
 //
 // IMPORTANT — kind is a ROLE, not a LAYER. The architectural layer is the concept
-// CLASS (the `class:` prefix), expressed via @partOf, never via @kind. So a file
-// is NOT `@kind infrastructure`; it's e.g. `@kind client @partOf infrastructure:redis`,
-// and a building block is `@kind <role> @partOf primitive:caching`. That's why
-// `primitive`/`infrastructure`/`registry`/`routeTemplate` are NOT kinds here.
+// CLASS (the `class:` prefix: feature / primitive / infrastructure), expressed via
+// @partOf, never via @kind. So a file is NOT `@kind infrastructure`; it's e.g.
+// `@kind client @partOf infrastructure:redis`, and a building block is
+// `@kind <role> @partOf primitive:caching`. That's why `primitive`/`infrastructure`
+// are NOT kinds here. (`registry` IS a kind — it's the role "a config table", not a
+// layer; a feature-flags table is `@kind registry @partOf feature:featureFlags`.)
 
 export const DEFAULT_KINDS = [
   // ── backend / shared ──────────────────────────────────────────────────────
@@ -30,6 +32,7 @@ export const DEFAULT_KINDS = [
   'entrypoint', // the way into a concept (ws/index, app bootstrap)
   'config', // configuration / env wiring
   'constant', // a closed set of literal values / lookup table, no behavioral hook
+  'registry', // a declarative config table that drives runtime behavior (the registry pattern)
   'type', // a pure type-only module (no runtime), distinct from a Zod schema
   'seed', // db seed
   'utils', // generic helper; also the catch-all when path can't classify

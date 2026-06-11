@@ -2,8 +2,8 @@ import type { ConceptRegistry } from '@inixiative/atlas';
 
 // The concept registry — the single source of valid concepts, repo-OWNED, STRUCTURE
 // ONLY (no status, no notes — those rot). Keyed `class:name`; the class prefix
-// (feature / primitive / infrastructure / registry) is your choice, derived
-// from these keys, not hardcoded by atlas.
+// (here: feature / primitive / infrastructure — the architectural layers) is your
+// choice, derived from these keys, not hardcoded by atlas.
 //
 // Each entry is a bag of named string lists you define:
 //   - reference fields (docs, tickets) — where to read about the concept; checked
@@ -19,6 +19,8 @@ export const CONCEPTS: ConceptRegistry = {
   'feature:billing': { module: ['billing', 'invoicing'], docs: ['BILLING.md'] },
   'feature:users': { module: ['user', 'profile'] },
   'feature:email': { package: ['email'], integration: ['sendgrid'], docs: ['COMMUNICATIONS.md'] },
+  // feature-flags is a feature; the flags table inside it is a file `@kind registry`.
+  'feature:featureFlags': { module: ['flags'] },
 
   // ── primitives (reusable building blocks features are made of) ─────────────
   'primitive:authz': { package: ['permissions'], docs: ['PERMISSIONS.md'] },
@@ -29,7 +31,4 @@ export const CONCEPTS: ConceptRegistry = {
   'infrastructure:postgres': { package: ['db'], docs: ['DATABASE.md'] },
   'infrastructure:redis': { docs: ['REDIS.md'] },
   'infrastructure:s3': {},
-
-  // ── registries (the registry pattern — a config table that drives behavior) ─
-  'registry:featureFlags': { module: ['flags'] },
 };
