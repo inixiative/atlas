@@ -4,7 +4,7 @@ import { runCheck } from './commands/check.ts';
 import { coverage } from './commands/coverage.ts';
 import { generate } from './commands/generate.ts';
 import { graph } from './commands/graph.ts';
-import { runStamp } from './commands/stamp.ts';
+import { inScope, runStamp } from './commands/stamp.ts';
 
 const HELP = `atlas — the map of the codebase
 
@@ -12,7 +12,8 @@ Usage: atlas <command> [target] [flags]
 
 Commands:
   graph                 reverse indexes: seam → files, file → seams, ticket/doc → seams
-  check                 presence + vocab existence + reference existence (the CI command)
+  check [target]        presence + vocab + reference existence (the CI command);
+                        a target scopes to a path and skips registry-wide reference checks
   coverage              unannotated files; @uses curation buckets; unresolved memberships
   generate              write MAP.md from the annotated tree
   stamp [target]        write/refresh @atlas blocks from the config rules (the patcher)
@@ -21,6 +22,7 @@ Flags:
   --root <dir>          repo root to operate on (default: cwd)
   --json                machine-readable output (graph/check/coverage/stamp)
   --stdout              print MAP.md instead of writing the file (generate)
+  --warn-only           print problems but always exit 0 (check; warn-only rollout)
   --write               persist changes (stamp; default is a dry-run)
   --overwrite           resync derivable @kind/@partOf, preserving curated @uses/@concern (stamp)
   --version             print version
@@ -62,14 +64,19 @@ export const runCli = async (argv: string[], env: { cwd: string }): Promise<{ co
 
   switch (command) {
     case 'check': {
-      const result = await runCheck(await analyze(root));
-      if (json) log(JSON.stringify(result, null, 2));
+      const target = positionals[1];
+      const warnOnly = flags['warn-only'] === true;
+      const full = await analyze(root);
+      const scoped = target ? { ...full, files: full.files.filter((f) => inScope(f.path, target)) } : full;
+      const result = await runCheck(scoped, { references: target === undefined });
+
+      if (json) log(JSON.stringify({ ...result, warnOnly }, null, 2));
       else if (result.ok) log('✓ atlas check passed');
       else {
-        log(`✗ atlas check: ${result.problems.length} problem(s)`);
+        log(`${warnOnly ? '⚠' : '✗'} atlas check: ${result.problems.length} problem(s)${warnOnly ? ' — warn-only' : ''}`);
         for (const p of result.problems) log(`  [${p.kind}] ${p.file ?? p.seam ?? ''} — ${p.message}`);
       }
-      return done(result.ok ? 0 : 1);
+      return done(result.ok || warnOnly ? 0 : 1);
     }
 
     case 'coverage': {

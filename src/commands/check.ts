@@ -55,7 +55,11 @@ export const checkReferences = async (a: Analysis): Promise<Problem[]> => {
   return problems;
 };
 
-export const runCheck = async (a: Analysis): Promise<CheckResult> => {
-  const problems = [...checkPresence(a), ...checkVocab(a), ...(await checkReferences(a))];
+// Reference existence is a registry-wide concern, so it is skipped when a run is
+// scoped to a subset of files (incremental PR checks) — only the file-level
+// presence/vocab checks make sense there.
+export const runCheck = async (a: Analysis, opts: { references?: boolean } = {}): Promise<CheckResult> => {
+  const problems = [...checkPresence(a), ...checkVocab(a)];
+  if (opts.references !== false) problems.push(...(await checkReferences(a)));
   return { ok: problems.length === 0, problems };
 };

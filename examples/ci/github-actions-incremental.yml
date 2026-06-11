@@ -1,0 +1,32 @@
+# Example — copy to .github/workflows/atlas-incremental.yml in your repo.
+# Enforce annotations only on the paths a PR changes (Phase 2 of the rollout):
+# new/edited code must be annotated; legacy code is grandfathered.
+name: atlas (incremental)
+
+on: pull_request
+
+jobs:
+  atlas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      - name: atlas check (changed paths)
+        run: |
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          changed=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" \
+            | grep -E '\.(ts|tsx)$' | xargs -r -n1 dirname | sort -u)
+          [ -z "$changed" ] && { echo "no source changes"; exit 0; }
+          status=0
+          for dir in $changed; do
+            bunx atlas check "$dir" || status=1
+          done
+          exit $status

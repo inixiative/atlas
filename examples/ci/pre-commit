@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+# Example local hook — copy to .husky/pre-commit (or .git/hooks/pre-commit; chmod +x).
+# Checks the source directories you're about to commit (presence + vocab).
+# Scoped per-path, so it's fast and skips the registry-wide reference check.
+
+staged=$(git diff --cached --name-only --diff-filter=ACM \
+  | grep -E '\.(ts|tsx)$' | xargs -r -n1 dirname | sort -u)
+
+[ -z "$staged" ] && exit 0
+
+status=0
+for dir in $staged; do
+  bunx atlas check "$dir" || status=1
+done
+
+if [ "$status" -ne 0 ]; then
+  echo "atlas: fix the annotations above, or run 'bunx atlas stamp <dir> --write' to fill them."
+fi
+exit "$status"

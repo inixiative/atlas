@@ -1,0 +1,34 @@
+# Example — copy to .github/workflows/atlas.yml in your repo.
+# Full-repo annotation check + MAP.md freshness gate.
+name: atlas
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  atlas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      # ── Annotation check ────────────────────────────────────────────────
+      # Rollout (DEV-003 Phase 4) — start warn-only, flip to enforcing later:
+      #   warn-only:  bunx atlas check --warn-only   # prints, never fails CI
+      #   enforcing:  bunx atlas check               # fails CI on any problem
+      - name: atlas check
+        run: bunx atlas check
+
+      # ── MAP.md freshness ────────────────────────────────────────────────
+      # The committed map must match the annotated tree, or the PR is stale.
+      - name: MAP.md is current
+        run: |
+          bunx atlas generate
+          git diff --exit-code MAP.md

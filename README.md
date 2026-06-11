@@ -119,6 +119,20 @@ Blanks are fillable on demand — the `eslint --fix` shape. Always **dry-run by 
 - **Overwrite (`--overwrite`)** — resync the derivable axes (`@kind`/`@partOf`) to the current
   rules; **never** overwrites curated `@uses`/`@concern`. A `@atlas pin` block is exempt.
 
+## CI
+
+`atlas check` is the CI primitive — it exits non-zero on any problem, so wiring it in is just
+running it in a workflow (no separate package needed). Copy-paste examples live in
+[`examples/ci/`](./examples/ci/): a full-repo GitHub Actions workflow with a `MAP.md` freshness
+gate, an incremental PR variant, and a pre-commit hook. The recommended rollout on an existing
+codebase is **warn-only → incremental enforcing → fully enforcing**:
+
+```bash
+atlas check --warn-only   # prints problems, never fails CI (rollout start)
+atlas check <path>        # enforce only changed paths (skips registry-wide reference checks)
+atlas check               # enforce the whole repo
+```
+
 ## Enforcement: existence, NOT correctness
 
 `atlas check` verifies annotations **exist and use valid vocabulary** — presence of a block, that

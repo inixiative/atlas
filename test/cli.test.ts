@@ -12,6 +12,20 @@ describe('runCli', () => {
     expect(out).toContain('EMAIL.md');
   });
 
+  test('check --warn-only still reports problems but exits 0', async () => {
+    const { code, out } = await runCli(['check', '--warn-only'], { cwd: MINI });
+    expect(code).toBe(0);
+    expect(out).toContain('missing @atlas block');
+    expect(out.toLowerCase()).toContain('warn');
+  });
+
+  test('check [target] scopes to a path and skips registry-wide reference checks', async () => {
+    const { code, out } = await runCli(['check', 'src/lib'], { cwd: MINI });
+    expect(code).toBe(1); // legacy.ts under src/lib is unannotated
+    expect(out).toContain('src/lib/legacy.ts');
+    expect(out).not.toContain('EMAIL.md'); // reference check skipped when scoped
+  });
+
   test('generate --stdout prints MAP.md and exits 0', async () => {
     const { code, out } = await runCli(['generate', '--stdout'], { cwd: MINI });
     expect(code).toBe(0);
