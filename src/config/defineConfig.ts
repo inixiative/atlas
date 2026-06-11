@@ -15,8 +15,11 @@ export const partOfFor = (category: string, capture: string): PartOfForDescripto
   capture,
 });
 
-export const isPartOfFor = (v: unknown): v is PartOfForDescriptor =>
-  typeof v === 'object' && v !== null && (v as PartOfForDescriptor).__atlasPartOfFor === true;
+export const isPartOfFor = (v: unknown): v is PartOfForDescriptor => {
+  if (typeof v !== 'object' || v === null) return false;
+  const d = v as Partial<PartOfForDescriptor>;
+  return d.__atlasPartOfFor === true && typeof d.category === 'string' && typeof d.capture === 'string';
+};
 
 // A tag value is a literal string (with optional `$n` interpolation), a list of
 // those, or a lazy partOfFor descriptor.
@@ -36,23 +39,23 @@ export type StampRule = {
 // `atlas check` can verify the reference exists on disk.
 export type ReferenceResolver = (value: string) => string;
 
-export type AtlasConfigInput = {
-  stamp?: StampRule[];
-  ignore?: string[]; // files exempt from presence + stamping (tests, barrels)
-  include?: string[]; // file globs atlas considers (default: common source files)
-  references?: Record<string, ReferenceResolver>;
+// The defaultable fields, defined once so input (all optional) and loaded (all
+// present) stay in lockstep — adding a field can't drift between the two.
+type ConfigDefaults = {
+  stamp: StampRule[]; // path → tag rules
+  ignore: string[]; // files exempt from presence + stamping (tests, barrels)
+  include: string[]; // file globs atlas considers (default: common source files)
+  references: Record<string, ReferenceResolver>;
 };
+
+export type AtlasConfigInput = Partial<ConfigDefaults>;
 
 export const defineConfig = (config: AtlasConfigInput): AtlasConfigInput => config;
 
 // What the loader hands the engine once defaults are applied and vocab/registry
 // are loaded from the sibling .atlas/ files.
-export type LoadedConfig = {
+export type LoadedConfig = ConfigDefaults & {
   kinds: readonly string[];
   concerns: readonly string[];
   seams: SeamRegistry;
-  stamp: StampRule[];
-  ignore: string[];
-  include: string[];
-  references: Record<string, ReferenceResolver>;
 };

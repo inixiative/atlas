@@ -1,9 +1,43 @@
 import { describe, expect, test } from 'bun:test';
-import { resolve } from 'node:path';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { loadConfig } from '../src/config/load.ts';
 import { walkFiles } from '../src/fs/walk.ts';
 
 const MINI = resolve(import.meta.dir, 'fixtures/mini');
+
+const withTempAtlas = async (files: Record<string, string>, fn: (dir: string) => Promise<void>): Promise<void> => {
+  const dir = await mkdtemp(join(tmpdir(), 'atlas-load-'));
+  try {
+    for (const [rel, content] of Object.entries(files)) await Bun.write(resolve(dir, rel), content);
+    await fn(dir);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+};
+
+describe('loadConfig — loud on misconfiguration', () => {
+  test('a present seams.ts exporting neither SEAMS nor default throws (not silently {})', async () => {
+    await withTempAtlas({ '.atlas/seams.ts': 'export const WRONG = {};\n' }, async (dir) => {
+      expect(loadConfig(dir)).rejects.toThrow(/seams\.ts/);
+    });
+  });
+
+  test('a malformed seam key (no class prefix) throws', async () => {
+    await withTempAtlas({ '.atlas/seams.ts': "export const SEAMS = { tenancy: {} };\n" }, async (dir) => {
+      expect(loadConfig(dir)).rejects.toThrow(/tenancy/);
+    });
+  });
+
+  test('no .atlas/ at all falls back to defaults without throwing', async () => {
+    await withTempAtlas({ 'src/x.ts': 'export const x = 1;\n' }, async (dir) => {
+      const cfg = await loadConfig(dir);
+      expect(cfg.kinds).toContain('controller');
+      expect(cfg.seams).toEqual({});
+    });
+  });
+});
 
 describe('loadConfig', () => {
   test('loads vocab, registry, and config from .atlas/, merging consumer extensions', async () => {

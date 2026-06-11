@@ -12,10 +12,13 @@ const loadModule = async (path: string): Promise<Record<string, unknown> | null>
   return (await import(path)) as Record<string, unknown>;
 };
 
-const named = <T>(mod: Record<string, unknown> | null, ...names: string[]): T | undefined => {
+// Pull a named export. A file that is PRESENT but exports none of `names` is a
+// misconfiguration, not an "absent → use default" — throw loudly rather than
+// silently degrading (e.g. an empty seam registry that passes CI against nothing).
+const named = <T>(mod: Record<string, unknown> | null, file: string, ...names: string[]): T | undefined => {
   if (!mod) return undefined;
   for (const n of names) if (mod[n] !== undefined) return mod[n] as T;
-  return undefined;
+  throw new Error(`.atlas/${file} exists but exports none of: ${names.join(', ')}`);
 };
 
 // Load the consumer's `.atlas/` config: kinds → concerns → seams → config (no
@@ -30,10 +33,18 @@ export const loadConfig = async (root: string): Promise<LoadedConfig> => {
     loadModule(resolve(dir, 'config.ts')),
   ]);
 
-  const kinds = named<readonly string[]>(kindsMod, 'KINDS', 'default') ?? DEFAULT_KINDS;
-  const concerns = named<readonly string[]>(concernsMod, 'CONCERNS', 'default') ?? DEFAULT_CONCERNS;
-  const seams = named<SeamRegistry>(seamsMod, 'SEAMS', 'default') ?? {};
-  const cfg = named<AtlasConfigInput>(configMod, 'default', 'config') ?? {};
+  const kinds = named<readonly string[]>(kindsMod, 'kinds.ts', 'KINDS', 'default') ?? DEFAULT_KINDS;
+  const concerns = named<readonly string[]>(concernsMod, 'concerns.ts', 'CONCERNS', 'default') ?? DEFAULT_CONCERNS;
+  const seams = named<SeamRegistry>(seamsMod, 'seams.ts', 'SEAMS', 'default') ?? {};
+  const cfg = named<AtlasConfigInput>(configMod, 'config.ts', 'default', 'config') ?? {};
+
+  // Seam keys are `class:name`; a malformed key would silently degrade to an
+  // 'other'/'(unmapped)' bucket downstream, so reject it at load.
+  for (const key of Object.keys(seams)) {
+    if (key.indexOf(':') <= 0) {
+      throw new Error(`.atlas/seams.ts: malformed seam key '${key}' — expected 'class:name'`);
+    }
+  }
 
   return {
     kinds,
