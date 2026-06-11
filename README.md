@@ -73,6 +73,9 @@ export default defineConfig({
 });
 ```
 
+A complete, commented set you can copy into your repo's `.atlas/` is in
+[`examples/atlas-config/`](./examples/atlas-config/) (`kinds.ts`, `seams.ts`, `config.ts`).
+
 ## CLI
 
 ```bash
