@@ -4,6 +4,7 @@ import { runCheck } from './commands/check.ts';
 import { coverage, evaluateCoverageGate, readBaseline } from './commands/coverage.ts';
 import { generate } from './commands/generate.ts';
 import { graph } from './commands/graph.ts';
+import { flagsToRule, type QueryRule, queryFiles, toQueryRecords } from './commands/query.ts';
 import { buildCoverageReport, buildConceptGraph } from './commands/report.ts';
 import { inScope, runStamp } from './commands/stamp.ts';
 import { renderCoverageHtml } from './render/html.ts';
@@ -21,6 +22,8 @@ Commands:
                         gate with --min <pct> and/or --ratchet (vs a committed baseline)
   generate              write MAP.md from the annotated tree
   report                coverage gaps + concept graph → COVERAGE.md (Mermaid) and atlas.html (Cytoscape)
+  query [predicate]     find files by axis — flags (--kind/--partOf/--uses/--path) and/or a
+                        json-rules predicate (the same AST used for authz/filtering)
   stamp [target]        write/refresh @atlas blocks from the config rules (the patcher)
 
 Flags:
@@ -36,13 +39,14 @@ Flags:
   --baseline <path>     baseline file (default: .atlas/coverage-baseline.json)
   --write               persist changes (stamp; default is a dry-run)
   --overwrite           resync derivable @kind/@partOf, preserving curated @uses (stamp)
+  --kind/--partOf/--uses/--path <v>   axis filters (query; AND together, combine with a predicate)
   --version             print version
   --help                this help`;
 
 type Flags = Record<string, string | boolean>;
 
 // Flags that consume the next token as a value; everything else is boolean.
-const VALUE_FLAGS = new Set(['root', 'min', 'baseline', 'out']);
+const VALUE_FLAGS = new Set(['root', 'min', 'baseline', 'out', 'kind', 'partOf', 'uses', 'path']);
 
 const parseArgs = (args: string[]): { flags: Flags; positionals: string[] } => {
   const flags: Flags = {};
@@ -210,6 +214,39 @@ const dispatch = async (
       else {
         await Bun.write(resolve(root, 'MAP.md'), map);
         log(`✓ wrote MAP.md (${map.split('\n').length} lines)`);
+      }
+      return done(0);
+    }
+
+    case 'query': {
+      const records = toQueryRecords(await analyze(root));
+      const flagRule = flagsToRule({
+        kind: flags.kind as string | undefined,
+        partOf: flags.partOf as string | undefined,
+        uses: flags.uses as string | undefined,
+        path: flags.path as string | undefined,
+      });
+      let jsonRule: QueryRule | null = null;
+      const raw = positionals[1];
+      if (raw) {
+        try {
+          jsonRule = JSON.parse(raw) as QueryRule;
+        } catch {
+          log(`✗ query: invalid json-rules predicate (not valid JSON): ${raw}`);
+          return done(1);
+        }
+      }
+      const rule: QueryRule | null =
+        flagRule && jsonRule ? ({ all: [flagRule, jsonRule] } as QueryRule) : (jsonRule ?? flagRule);
+      if (!rule) {
+        log('query needs a json-rules predicate and/or at least one of --kind/--partOf/--uses/--path');
+        return done(1);
+      }
+      const hits = queryFiles(records, rule);
+      if (json) log(JSON.stringify(hits, null, 2));
+      else {
+        log(`${hits.length} file(s):`);
+        for (const h of hits) log(`  ${h.path}`);
       }
       return done(0);
     }

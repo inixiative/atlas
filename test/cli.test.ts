@@ -68,6 +68,24 @@ describe('runCli', () => {
     expect(JSON.parse(out).conceptToFiles['feature:billing']).toBeDefined();
   });
 
+  test('query with flags filters by axis', async () => {
+    const { code, out } = await runCli(['query', '--kind', 'controller', '--partOf', 'feature:billing'], { cwd: MINI });
+    expect(code).toBe(0);
+    expect(out).toContain('src/modules/billing/controllers/createInvoice.ts');
+    expect(out).not.toContain('charge.ts'); // a service, filtered out
+  });
+
+  test('query accepts a raw json-rules predicate', async () => {
+    const pred = JSON.stringify({ field: 'uses', operator: 'contains', value: 'infrastructure:redis' });
+    const { code, out } = await runCli(['query', pred], { cwd: MINI });
+    expect(code).toBe(0);
+    expect(out).toContain('src/modules/billing/services/charge.ts'); // the redis user
+  });
+
+  test('query with no predicate or flags errors', async () => {
+    expect((await runCli(['query'], { cwd: MINI })).code).toBe(1);
+  });
+
   test('coverage --min with a non-numeric value errors instead of silently disabling the gate', async () => {
     const { code, out } = await runCli(['coverage', '--min', 'abc'], { cwd: MINI });
     expect(code).toBe(1);
