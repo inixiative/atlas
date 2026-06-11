@@ -25,17 +25,21 @@ export const DEFAULT_KINDS = [
   'schema', // request/response schemas in modules/*/schemas
   'validator', // modules/*/validations
   'transformer', // value/shape transformers (serialize, normalize, project)
+  'bridge', // connects two systems (e.g. an app-event → email/websocket bridge)
   'client', // a connection/client to an external dependency (redis, prisma, s3…)
   'adapter', // an implementation of an interface behind a port (the adapter pattern)
   'integration', // glue to an external service (webhooks, oauth handshakes, SDK wrappers)
   'factory', // test factory (packages/db/src/test/factories)
   'constructor', // make*() factory producing a category of thing; pair with @constructs
-  'entrypoint', // the way into a concept (ws/index, app bootstrap)
+  'entrypoint', // the way into a concept (ws/index, app bootstrap) — a concept may have several
   'config', // configuration / env wiring
   'constant', // a closed set of literal values / lookup table, no behavioral hook
+  'definition', // a static definition entry consumed by a registry (vs the behavioral `registry`)
   'registry', // a declarative config table that drives runtime behavior (the registry pattern)
   'type', // a pure type-only module (no runtime), distinct from a Zod schema
+  'error', // an error class / error type definition
   'seed', // db seed
+  'generator', // a code-generation script (produces source / types)
   'utils', // generic helper; also the catch-all when path can't classify
 
   // ── frontend ────────────────────────────────────────────────────────────────
