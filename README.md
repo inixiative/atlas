@@ -1,0 +1,132 @@
+# atlas
+
+**The map of the codebase.** atlas reads `@atlas` annotations declared at the top of each file,
+validates them against a repo-owned **seam registry**, and generates a `MAP.md` that *cannot drift
+on the structural facts* — because atlas only ever asserts what is mechanically true (what exists,
+how it connects), never maturity or correctness.
+
+It's a Biome-shaped tool: a small CLI plus a `.atlas/` config folder. The tool is generic; **your
+repo defines its own vocabulary.**
+
+```ts
+/**
+ * @atlas
+ * @kind controller
+ * @partOf feature:tenancy
+ * @uses primitive:authz, infrastructure:redis
+ * @concern tenantIsolation
+ */
+```
+
+## Why
+
+Hand-maintained maps (FEATURES.md, docs, prose) drift from the code. atlas makes the map a
+*projection* of the code: every file declares traversable **seams** — what it is, what it's part
+of, what it uses — so the repo is explorable by **concept** instead of by crawling folders.
+"Show me everything that touches caching" becomes one traversal.
+
+The core discipline: **meaning emerges from the intersection of several true edges**, not from one
+hyper-specific label. Keep the vocabulary broad but closed; apply it liberally.
+
+## Install
+
+```bash
+bun add -d @inixiative/atlas
+```
+
+atlas is Bun-native (it imports your `.atlas/*.ts` config directly).
+
+## Configure
+
+A consuming repo gets a `.atlas/` folder. atlas ships sensible default `kinds`/`concerns`; the
+repo **owns** its seam registry.
+
+```
+.atlas/
+  config.ts     // stamp rules (path → tags) + ignore + reference resolvers
+  kinds.ts      // @kind vocab — extends atlas's defaults
+  concerns.ts   // @concern vocab — extends atlas's defaults
+  seams.ts      // the seam registry — repo-OWNED, structure only
+```
+
+```ts
+// .atlas/seams.ts — structure only, no status/note. YOU define the seam classes
+// (feature/primitive/…) and the constituent categories (module/package/…).
+import type { SeamRegistry } from '@inixiative/atlas';
+
+export const SEAMS: SeamRegistry = {
+  'feature:tenancy': { module: ['organization', 'space'], docs: ['AUTH.md'] },
+  'infrastructure:redis': { docs: ['REDIS.md'] },
+};
+```
+
+```ts
+// .atlas/config.ts — stamp rules compose; explicit always wins.
+import { defineConfig, partOfFor } from '@inixiative/atlas/config';
+
+export default defineConfig({
+  include: ['apps/**/*.ts', 'packages/**/*.ts'],
+  ignore: ['**/*.test.ts', '**/index.ts'],
+  stamp: [
+    { include: '**/controllers/**', kind: 'controller' },          // @kind from a structural glob
+    { include: 'apps/api/src/modules/$1/**', partOf: partOfFor('module', '$1') }, // @partOf from a capture
+  ],
+  references: { docs: (v) => `docs/${v}` },                         // for reference-existence checks
+});
+```
+
+## CLI
+
+```bash
+atlas graph       # reverse indexes: seam → files, file → seams, ticket/doc → seams
+atlas check       # presence + vocab existence + reference existence  (the CI command)
+atlas coverage    # unannotated files; @uses curation buckets; unresolved memberships
+atlas generate    # write MAP.md from the annotated tree
+atlas stamp [dir] # write/refresh @atlas blocks from the rules (the patcher; dry-run by default)
+```
+
+Common flags: `--root <dir>`, `--json`, `generate --stdout`, `stamp --write`, `stamp --overwrite`.
+
+## The annotation model
+
+| Question | Tag | Value | Notes |
+|----------|-----|-------|-------|
+| What is this? | `@kind` | closed enum | 1+, e.g. `entrypoint, registry` |
+| What is it part of? | `@partOf` | `class:name` seam(s) | membership; multi is normal |
+| What does it use? | `@uses` | `class:name` seam(s) | dependency, load-bearing only |
+| Cross-cutting props? | `@concern` | closed enum | 0+ |
+| What does it build? | `@constructs` | factory output | constructors only |
+
+All axes are multi-valued (comma-separated on one line). `@atlas` opens the block.
+
+### `@uses` is never auto-stamped
+
+Absence is meaningful, so atlas leaves `@uses` out of stamping entirely:
+
+- **no `@uses` line** = *uncurated* (nobody filled it in)
+- **`@uses none`** = *curated-empty* (a human looked; it uses nothing load-bearing)
+- **`@uses? x`** = *proposed* (a patcher suggestion awaiting acceptance)
+
+`coverage` reports these as distinct buckets.
+
+## The patcher: `atlas stamp`
+
+Blanks are fillable on demand — the `eslint --fix` shape. Always **dry-run by default**; pass
+`--write` to apply.
+
+- **Targeting** — `all` (default), a folder, or a single file.
+- **Additive (default)** — fill only what's absent; never modify an existing tag; never touch `@uses`.
+- **Overwrite (`--overwrite`)** — resync the derivable axes (`@kind`/`@partOf`) to the current
+  rules; **never** overwrites curated `@uses`/`@concern`. A `@atlas pin` block is exempt.
+
+## Enforcement: existence, NOT correctness
+
+`atlas check` verifies annotations **exist and use valid vocabulary** — presence of a block, that
+`@kind`/`@concern` are in the vocab, that `@partOf`/`@uses` name a seam that exists, and that a
+seam's doc/ticket references resolve. It explicitly does **not** reconcile the import graph, judge
+whether a `@partOf` is "really true," or derive any status. Those are fool's errands that trade a
+clear structural guarantee for a fragile proxy.
+
+## License
+
+MIT

@@ -1,0 +1,53 @@
+{
+  "name": "@inixiative/atlas",
+  "version": "0.1.0",
+  "description": "The map of the codebase — @atlas code annotations + a seam registry + a drift-proof MAP.md. A map that can only assert what is mechanically true.",
+  "type": "module",
+  "license": "MIT",
+  "author": "inixiative",
+  "homepage": "https://github.com/inixiative/atlas#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/inixiative/atlas.git"
+  },
+  "bugs": {
+    "url": "https://github.com/inixiative/atlas/issues"
+  },
+  "keywords": [
+    "atlas",
+    "codebase-map",
+    "annotations",
+    "architecture",
+    "seams",
+    "documentation",
+    "static-analysis"
+  ],
+  "bin": {
+    "atlas": "./bin/atlas.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./config": "./src/config/defineConfig.ts"
+  },
+  "files": [
+    "src",
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "atlas": "bun run ./bin/atlas.ts"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.6.0"
+  }
+}

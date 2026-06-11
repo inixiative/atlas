@@ -1,0 +1,127 @@
+import { resolve } from 'node:path';
+import { analyze } from './analyze.ts';
+import { runCheck } from './commands/check.ts';
+import { coverage } from './commands/coverage.ts';
+import { generate } from './commands/generate.ts';
+import { graph } from './commands/graph.ts';
+import { runStamp } from './commands/stamp.ts';
+
+const HELP = `atlas — the map of the codebase
+
+Usage: atlas <command> [target] [flags]
+
+Commands:
+  graph                 reverse indexes: seam → files, file → seams, ticket/doc → seams
+  check                 presence + vocab existence + reference existence (the CI command)
+  coverage              unannotated files; @uses curation buckets; unresolved memberships
+  generate              write MAP.md from the annotated tree
+  stamp [target]        write/refresh @atlas blocks from the config rules (the patcher)
+
+Flags:
+  --root <dir>          repo root to operate on (default: cwd)
+  --json                machine-readable output (graph/check/coverage/stamp)
+  --stdout              print MAP.md instead of writing the file (generate)
+  --write               persist changes (stamp; default is a dry-run)
+  --overwrite           resync derivable @kind/@partOf, preserving curated @uses/@concern (stamp)
+  --version             print version
+  --help                this help`;
+
+type Flags = Record<string, string | boolean>;
+
+const parseArgs = (args: string[]): { flags: Flags; positionals: string[] } => {
+  const flags: Flags = {};
+  const positionals: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!;
+    if (a.startsWith('--')) {
+      const key = a.slice(2);
+      if (key === 'root') flags.root = args[++i] ?? '';
+      else flags[key] = true;
+    } else positionals.push(a);
+  }
+  return { flags, positionals };
+};
+
+const version = async (): Promise<string> => {
+  const pkg = (await import('../package.json')) as { version?: string; default?: { version?: string } };
+  return pkg.version ?? pkg.default?.version ?? '0.0.0';
+};
+
+export const runCli = async (argv: string[], env: { cwd: string }): Promise<{ code: number; out: string }> => {
+  const out: string[] = [];
+  const log = (s = ''): void => void out.push(s);
+  const done = (code: number) => ({ code, out: out.join('\n') });
+
+  const { flags, positionals } = parseArgs(argv);
+  const command = positionals[0];
+  const root = (flags.root as string) || env.cwd;
+  const json = flags.json === true;
+
+  if (flags.version === true) return { code: 0, out: await version() };
+  if (flags.help === true || command === undefined || command === 'help') return { code: 0, out: HELP };
+
+  switch (command) {
+    case 'check': {
+      const result = await runCheck(await analyze(root));
+      if (json) log(JSON.stringify(result, null, 2));
+      else if (result.ok) log('✓ atlas check passed');
+      else {
+        log(`✗ atlas check: ${result.problems.length} problem(s)`);
+        for (const p of result.problems) log(`  [${p.kind}] ${p.file ?? p.seam ?? ''} — ${p.message}`);
+      }
+      return done(result.ok ? 0 : 1);
+    }
+
+    case 'coverage': {
+      const c = coverage(await analyze(root));
+      if (json) log(JSON.stringify(c, null, 2));
+      else {
+        log(`Coverage: ${c.annotated}/${c.total} files annotated`);
+        if (c.unannotated.length) log(`  unannotated (${c.unannotated.length}):\n${c.unannotated.map((f) => `    ${f}`).join('\n')}`);
+        log(`  @uses — curated ${c.uses.curated.length}, curated-empty ${c.uses.curatedEmpty.length}, proposed ${c.uses.proposed.length}, uncurated ${c.uses.uncurated.length}`);
+        if (c.unresolved.length) log(`  unresolved memberships (${c.unresolved.length}):\n${c.unresolved.map((u) => `    ${u.file}: ${u.category}:${u.value}`).join('\n')}`);
+      }
+      return done(0);
+    }
+
+    case 'graph': {
+      const g = graph(await analyze(root));
+      if (json) log(JSON.stringify(g, null, 2));
+      else {
+        log('seam → files (@partOf):');
+        for (const seam of Object.keys(g.seamToFiles).sort()) log(`  ${seam} (${g.seamToFiles[seam]!.length})`);
+        log('seam → consumers (@uses):');
+        for (const seam of Object.keys(g.usesConsumers).sort()) log(`  ${seam} (${g.usesConsumers[seam]!.length})`);
+      }
+      return done(0);
+    }
+
+    case 'generate': {
+      const map = generate(await analyze(root));
+      if (flags.stdout === true) log(map);
+      else {
+        await Bun.write(resolve(root, 'MAP.md'), map);
+        log(`✓ wrote MAP.md (${map.split('\n').length} lines)`);
+      }
+      return done(0);
+    }
+
+    case 'stamp': {
+      const mode = flags.overwrite === true ? 'overwrite' : 'additive';
+      const write = flags.write === true;
+      const changes = await runStamp(root, { mode, target: positionals[1], write });
+      if (json) log(JSON.stringify(changes.map((c) => ({ path: c.path })), null, 2));
+      else if (!changes.length) log('✓ nothing to stamp — already up to date');
+      else {
+        log(`${write ? 'Wrote' : 'Would change'} ${changes.length} file(s)${write ? '' : ' (dry-run — pass --write to apply)'}:`);
+        for (const c of changes) log(`  ${c.path}`);
+      }
+      return done(0);
+    }
+
+    default:
+      log(`unknown command: ${command}\n`);
+      log(HELP);
+      return done(1);
+  }
+};
