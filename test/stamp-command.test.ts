@@ -66,12 +66,28 @@ describe('runStamp (write to disk)', () => {
       );
 
       const dry = await runStamp(dir, { mode: 'additive', write: false });
-      expect(dry.length).toBe(1);
+      expect(dry.changes.length).toBe(1);
       expect(await Bun.file(resolve(dir, file)).text()).toBe('export const x = 1;\n'); // untouched
 
       const written = await runStamp(dir, { mode: 'additive', write: true });
-      expect(written.length).toBe(1);
+      expect(written.changes.length).toBe(1);
       expect(parseAtlasBlock(await Bun.file(resolve(dir, file)).text())?.kind).toEqual(['controller']);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('surfaces unresolved memberships (a partOf capture matching no seam)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'atlas-unres-'));
+    try {
+      await Bun.write(resolve(dir, 'src/modules/ghost/x.ts'), 'export const x = 1;\n');
+      await Bun.write(resolve(dir, '.atlas/seams.ts'), "export const SEAMS = { 'feature:real': { module: ['real'] } };\n");
+      await Bun.write(
+        resolve(dir, '.atlas/config.ts'),
+        "export default { include: ['src/**/*.ts'], stamp: [{ include: 'src/modules/$1/**', partOf: { __atlasPartOfFor: true, category: 'module', capture: '$1' } }] };\n",
+      );
+      const { unresolved } = await runStamp(dir, { mode: 'additive', write: false });
+      expect(unresolved).toEqual([{ file: 'src/modules/ghost/x.ts', category: 'module', value: 'ghost' }]);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

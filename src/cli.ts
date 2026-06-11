@@ -217,12 +217,21 @@ const dispatch = async (
     case 'stamp': {
       const mode = flags.overwrite === true ? 'overwrite' : 'additive';
       const write = flags.write === true;
-      const changes = await runStamp(root, { mode, target: positionals[1], write });
-      if (json) log(JSON.stringify(changes.map((c) => ({ path: c.path })), null, 2));
-      else if (!changes.length) log('✓ nothing to stamp — already up to date');
-      else {
-        log(`${write ? 'Wrote' : 'Would change'} ${changes.length} file(s)${write ? '' : ' (dry-run — pass --write to apply)'}:`);
-        for (const c of changes) log(`  ${c.path}`);
+      const { changes, unresolved } = await runStamp(root, { mode, target: positionals[1], write });
+      if (json) {
+        log(JSON.stringify({ changes: changes.map((c) => ({ path: c.path })), unresolved }, null, 2));
+      } else {
+        if (!changes.length) log('✓ nothing to stamp — already up to date');
+        else {
+          log(`${write ? 'Wrote' : 'Would change'} ${changes.length} file(s)${write ? '' : ' (dry-run — pass --write to apply)'}:`);
+          for (const c of changes) log(`  ${c.path}`);
+        }
+        // A capture that resolves to no seam leaves the file without @partOf —
+        // surface it here so the registry gap isn't invisible at write time.
+        if (unresolved.length) {
+          log(`⚠ ${unresolved.length} unresolved membership(s) — left unstamped (add the seam to .atlas/seams.ts):`);
+          for (const u of unresolved) log(`  ${u.file}: ${u.category}:${u.value}`);
+        }
       }
       return done(0);
     }

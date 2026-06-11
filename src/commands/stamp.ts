@@ -2,10 +2,15 @@ import { resolve } from 'node:path';
 import type { LoadedConfig } from '../config/defineConfig.ts';
 import { loadConfig } from '../config/load.ts';
 import { stampFor } from '../config/stamp.ts';
+import { mapLimit } from '../fs/concurrent.ts';
 import { walkFiles } from '../fs/walk.ts';
 import { applyStamp, type StampMode } from '../stamp/patcher.ts';
 
 export type StampChange = { path: string; before: string; after: string };
+export type Unresolved = { file: string; category: string; value: string };
+export type StampResult = { changes: StampChange[]; unresolved: Unresolved[] };
+
+const IO_CONCURRENCY = 64;
 
 // A file is in scope when no target is given, when the target IS the file, or
 // when the target is a folder the file lives under. (all / folder / individual)
@@ -41,15 +46,29 @@ export const planStamp = (
     .filter((c): c is StampChange => c !== null);
 
 // IO: read the scoped files, plan, and (only with write) persist. Dry-run is
-// the default everywhere — writing requires the explicit flag.
+// the default everywhere — writing requires the explicit flag. Reads/writes are
+// concurrency-bounded so a large repo can't exhaust file descriptors. Unresolved
+// memberships are surfaced here (not just in `coverage`) so a capture that maps
+// to no seam — leaving a file under-stamped — is visible at write time.
 export const runStamp = async (
   root: string,
   opts: { mode: StampMode; target?: string; write: boolean },
-): Promise<StampChange[]> => {
+): Promise<StampResult> => {
   const config = await loadConfig(root);
   const paths = (await walkFiles(root, config.include, config.ignore)).filter((p) => inScope(p, opts.target));
-  const files = await Promise.all(paths.map(async (path) => ({ path, source: await Bun.file(resolve(root, path)).text() })));
+  const files = await mapLimit(paths, IO_CONCURRENCY, async (path) => ({
+    path,
+    source: await Bun.file(resolve(root, path)).text(),
+  }));
+
   const changes = planStamp(files, config, opts.mode, opts.target);
-  if (opts.write) await Promise.all(changes.map((c) => Bun.write(resolve(root, c.path), c.after)));
-  return changes;
+  const unresolved: Unresolved[] = [];
+  for (const { path } of files) {
+    for (const u of stampFor(path, config.stamp, config.seams).unresolved) {
+      unresolved.push({ file: path, category: u.category, value: u.value });
+    }
+  }
+
+  if (opts.write) await mapLimit(changes, IO_CONCURRENCY, (c) => Bun.write(resolve(root, c.path), c.after));
+  return { changes, unresolved };
 };
