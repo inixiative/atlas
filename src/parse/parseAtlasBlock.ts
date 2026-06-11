@@ -22,11 +22,15 @@ export type AtlasAnnotation = {
 const AXIS_LINE = /^\s*\*?\s*@([a-zA-Z][\w]*)(\??)[ \t]*(.*)$/;
 const BLOCK_COMMENT = /\/\*[\s\S]*?\*\//g;
 
+const dedupe = (values: string[]): string[] => [...new Set(values)];
+
 const splitValues = (raw: string): string[] =>
-  raw
-    .split(',')
-    .map((v) => v.trim())
-    .filter((v) => v.length > 0);
+  dedupe(
+    raw
+      .split(',')
+      .map((v) => v.trim())
+      .filter((v) => v.length > 0),
+  );
 
 const OPENS_ATLAS = /(^|\n)\s*\*?\s*@atlas\b/;
 
@@ -51,10 +55,16 @@ export const parseAtlasBlock = (source: string): AtlasAnnotation | null => {
   const atlasBlock = located.text;
 
   const axes: Record<string, string[]> = {};
-  let usesState: UsesState = 'absent';
   let pinned = false;
+  // @uses is resolved from the whole block, not last-line-wins, so multi-line or
+  // mixed `@uses none, x` can't produce a state that disagrees with the values.
+  let usesSeen = false;
+  let usesNone = false;
+  let usesProposed = false;
+  const usesValues: string[] = [];
 
-  for (const line of atlasBlock.split('\n')) {
+  // split on \r?\n so CRLF files don't leave a trailing \r polluting values.
+  for (const line of atlasBlock.split(/\r?\n/)) {
     const m = AXIS_LINE.exec(line);
     if (!m) continue;
     const [, name, tentative, rest] = m;
@@ -66,21 +76,27 @@ export const parseAtlasBlock = (source: string): AtlasAnnotation | null => {
     const values = splitValues(rest ?? '');
 
     if (name === 'uses') {
-      if (tentative === '?') usesState = 'proposed';
-      else if (values.length === 1 && values[0] === 'none') usesState = 'none';
-      else if (values.length > 0) usesState = 'values';
-      const resolved = usesState === 'none' ? [] : values;
-      axes.uses = [...(axes.uses ?? []), ...resolved];
+      usesSeen = true;
+      if (tentative === '?') usesProposed = true;
+      if (values.includes('none')) usesNone = true;
+      usesValues.push(...values.filter((v) => v !== 'none'));
       continue;
     }
 
-    axes[name!] = [...(axes[name!] ?? []), ...values];
+    axes[name!] = dedupe([...(axes[name!] ?? []), ...values]);
   }
+
+  // Real values always win over a stray `none`; absent (no line) is distinct
+  // from curated-empty (`@uses none` / a bare `@uses`).
+  const uses = dedupe(usesValues);
+  const usesState: UsesState =
+    uses.length > 0 ? (usesProposed ? 'proposed' : 'values') : usesNone || usesSeen ? 'none' : 'absent';
+  if (usesSeen) axes.uses = uses;
 
   return {
     kind: axes.kind ?? [],
     partOf: axes.partOf ?? [],
-    uses: axes.uses ?? [],
+    uses,
     usesState,
     concern: axes.concern ?? [],
     constructs: axes.constructs ?? [],

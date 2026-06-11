@@ -60,4 +60,28 @@ describe('parseAtlasBlock', () => {
     const ann = parseAtlasBlock(block(' * @atlas\n * @partOf feature:a\n * @partOf primitive:b'));
     expect(ann?.partOf).toEqual(['feature:a', 'primitive:b']);
   });
+
+  test('parses CRLF blocks identically to LF (no stray \\r in values)', () => {
+    const crlf = '/**\r\n * @atlas\r\n * @kind controller\r\n * @partOf feature:billing\r\n * @uses primitive:authz\r\n */\r\ncode\r\n';
+    const ann = parseAtlasBlock(crlf);
+    expect(ann?.kind).toEqual(['controller']);
+    expect(ann?.partOf).toEqual(['feature:billing']);
+    expect(ann?.uses).toEqual(['primitive:authz']);
+    expect(ann?.usesState).toBe('values');
+  });
+
+  test('real @uses values win over a stray none token (no phantom "none" seam)', () => {
+    const inline = parseAtlasBlock(block(' * @atlas\n * @uses none, primitive:authz'));
+    expect(inline?.usesState).toBe('values');
+    expect(inline?.uses).toEqual(['primitive:authz']);
+
+    const multiline = parseAtlasBlock(block(' * @atlas\n * @uses primitive:authz\n * @uses none'));
+    expect(multiline?.usesState).toBe('values');
+    expect(multiline?.uses).toEqual(['primitive:authz']);
+  });
+
+  test('dedupes repeated values within an axis', () => {
+    const ann = parseAtlasBlock(block(' * @atlas\n * @partOf feature:a, feature:a'));
+    expect(ann?.partOf).toEqual(['feature:a']);
+  });
 });

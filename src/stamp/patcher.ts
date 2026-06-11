@@ -40,6 +40,17 @@ export const renderBlock = (spec: BlockSpec): string => {
 
 const union = (a: string[] = [], b: string[] = []): string[] => [...new Set([...a, ...b])];
 
+const detectEol = (source: string): string => (source.includes('\r\n') ? '\r\n' : '\n');
+
+// Renders the canonical (LF) block, then matches the file's existing EOL so a
+// CRLF file round-trips without churn or mixed endings.
+const renderWithEol = (spec: BlockSpec, eol: string): string =>
+  eol === '\n' ? renderBlock(spec) : renderBlock(spec).replaceAll('\n', eol);
+
+// A fresh block belongs at the top, but below a shebang (moving it above would
+// break an executable script).
+const SHEBANG = /^#![^\n]*\n/;
+
 const carryUses = (existing: AtlasAnnotation | null): Pick<BlockSpec, 'uses' | 'usesState'> =>
   existing ? { uses: existing.uses, usesState: existing.usesState } : {};
 
@@ -52,18 +63,25 @@ export const applyStamp = (
 ): { content: string; changed: boolean } => {
   const existing = parseAtlasBlock(source);
   const located = locateAtlasBlock(source);
+  const eol = detectEol(source);
 
-  // No block yet — insert a fresh one at the top (uses omitted = uncurated).
+  // No block yet — insert a fresh one at the top (uses omitted = uncurated),
+  // but below a shebang so an executable file keeps working.
   if (!existing || !located) {
     const spec: BlockSpec = {
       kind: resolved.kind ?? [],
-      partOf: resolved.partOf ?? [],
+      partOf: [...(resolved.partOf ?? [])].sort(),
       concern: resolved.concern ?? [],
       constructs: resolved.constructs ?? [],
     };
     const hasAny = [spec.kind, spec.partOf, spec.concern, spec.constructs].some((v) => v && v.length);
     if (!hasAny) return { content: source, changed: false };
-    return { content: `${renderBlock(spec)}\n${source}`, changed: true };
+    const block = renderWithEol(spec, eol);
+    const shebang = SHEBANG.exec(source)?.[0];
+    const content = shebang
+      ? shebang + block + eol + source.slice(shebang.length)
+      : block + eol + source;
+    return { content, changed: true };
   }
 
   // Overwrite is exempt on a pinned block — the hand-curated overload wins.
@@ -91,8 +109,10 @@ export const applyStamp = (
           ...carryUses(existing),
           pinned: existing.pinned,
         };
+  // @partOf is sorted so a merged block matches a freshly-stamped one (stampFor sorts).
+  merged.partOf = [...(merged.partOf ?? [])].sort();
 
-  const block = renderBlock(merged);
+  const block = renderWithEol(merged, eol);
   if (block === located.text) return { content: source, changed: false };
   return { content: source.slice(0, located.start) + block + source.slice(located.end), changed: true };
 };

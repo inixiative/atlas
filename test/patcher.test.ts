@@ -62,6 +62,27 @@ describe('applyStamp — additive (default)', () => {
   });
 });
 
+describe('applyStamp — CRLF & placement', () => {
+  test('a CRLF file already matching the rules re-stamps to no change (idempotent)', () => {
+    const crlf = ['/**', ' * @atlas', ' * @kind controller', ' * @partOf feature:billing', ' */', 'code()', ''].join('\r\n');
+    const { changed } = applyStamp(crlf, { kind: ['controller'], partOf: ['feature:billing'] });
+    expect(changed).toBe(false);
+  });
+
+  test('a fresh block is inserted after a shebang, not above it', () => {
+    const src = '#!/usr/bin/env bun\nexport const x = 1;\n';
+    const { content } = applyStamp(src, { kind: ['controller'] });
+    expect(content.startsWith('#!/usr/bin/env bun\n')).toBe(true);
+    expect(parseAtlasBlock(content)?.kind).toEqual(['controller']);
+  });
+
+  test('additive @partOf is sorted to match a fresh stamp', () => {
+    const existing = ['/**', ' * @atlas', ' * @partOf feature:z', ' */', 'code()'].join('\n');
+    const { content } = applyStamp(existing, { partOf: ['feature:a'] });
+    expect(parseAtlasBlock(content)?.partOf).toEqual(['feature:a', 'feature:z']);
+  });
+});
+
 describe('applyStamp — overwrite', () => {
   const existing = [
     '/**',
