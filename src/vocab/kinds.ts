@@ -1,19 +1,20 @@
-// atlas default `@kind` vocabulary — the architectural role(s) a file plays.
+// atlas default `@kind` vocabulary — the ROLE a file plays ("what is this?").
 //
-// `@kind` answers "what is this?". Closed set, but the consumer EXTENDS it:
+// Closed set, but the consumer EXTENDS it:
 //   export const KINDS = [...DEFAULT_KINDS, 'job', 'migration'] as const
-// atlas validates `@kind` values against the merged set the repo provides; it
-// does not force this list on anyone. These are the near-universal SaaS roles.
+// atlas validates `@kind` against the merged set the repo provides; it does not
+// force this list on anyone. These are near-universal file roles.
 //
-// Role and concept are orthogonal: a db mutation-lifecycle "hook" is
-// `@kind handler @partOf primitive:mutationLifecycle`, never a fused kind.
-// `hook` here means a React hook (frontend) — the universal meaning.
+// IMPORTANT — kind is a ROLE, not a LAYER. The architectural layer is the concept
+// CLASS (the `class:` prefix), expressed via @partOf, never via @kind. So a file
+// is NOT `@kind infrastructure`; it's e.g. `@kind client @partOf infrastructure:redis`,
+// and a building block is `@kind <role> @partOf primitive:caching`. That's why
+// `primitive`/`infrastructure`/`registry`/`routeTemplate` are NOT kinds here.
 
 export const DEFAULT_KINDS = [
   // ── backend / shared ──────────────────────────────────────────────────────
   'controller', // request handler in modules/*/controllers
   'route', // route definition in modules/*/routes
-  'routeTemplate', // readRoute/createRoute/… in lib/routeTemplates
   'middleware', // middleware/*
   'handler', // handler — pair with @partOf (jobs, app-events, db mutation hooks)
   'helper', // small focused helper bound to a concept (vs generic `utils`)
@@ -21,12 +22,11 @@ export const DEFAULT_KINDS = [
   'schema', // request/response schemas in modules/*/schemas
   'validator', // modules/*/validations
   'transformer', // value/shape transformers (serialize, normalize, project)
-  'integration', // external-service integration
+  'client', // a connection/client to an external dependency (redis, prisma, s3…)
+  'adapter', // an implementation of an interface behind a port (the adapter pattern)
+  'integration', // glue to an external service (webhooks, oauth handshakes, SDK wrappers)
   'factory', // test factory (packages/db/src/test/factories)
   'constructor', // make*() factory producing a category of thing; pair with @constructs
-  'registry', // a declarative config table (the registry pattern)
-  'primitive', // a reusable building block's own implementation
-  'infrastructure', // connection/client to an external dependency (redis, prisma, s3…)
   'entrypoint', // the way into a concept (ws/index, app bootstrap)
   'config', // configuration / env wiring
   'constant', // a closed set of literal values / lookup table, no behavioral hook

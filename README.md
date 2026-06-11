@@ -124,7 +124,7 @@ calls; agents left to `grep` took 2–3× as many and risk missing the transitiv
 
 | Question | Tag | Value | Notes |
 |----------|-----|-------|-------|
-| What is this? | `@kind` | closed enum | 1+, e.g. `entrypoint, registry` |
+| What is this? | `@kind` | closed enum | 1+, e.g. `entrypoint, route` (a role, not a layer) |
 | What is it part of? | `@partOf` | `class:name` concept(s) | membership; multi is normal |
 | What does it use? | `@uses` | `class:name` concept(s) | dependency, load-bearing only |
 | What does it build? | `@constructs` | factory output | constructors only |
