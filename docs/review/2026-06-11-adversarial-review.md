@@ -1,5 +1,40 @@
 # Adversarial review — atlas (2026-06-11)
 
+## Resolution (2026-06-11, commits 8287be5…e012930)
+
+All findings addressed test-first; suite went 87 → 111 tests. Status:
+
+| Finding | Status | Commit |
+|---------|--------|--------|
+| C1 CRLF | Fixed (split `\r?\n`, EOL-aware render) | 8287be5 |
+| C2 silent config load | Fixed (throw on present-but-mis-exported) | dfbc5ad |
+| H1 `--min` disables gate | Fixed (validate; reject NaN/empty) | f9db4aa |
+| H2 `@uses` state | Fixed (resolved from whole block; values win) | 8287be5 |
+| H3 Mermaid label injection | Fixed (escape label + injective safeId) | 777dcdf |
+| H4 stamp drops unresolved | Fixed (runStamp surfaces + CLI warns) | 0cc259a |
+| M1 EMFILE | Fixed (mapLimit, 64-wide) | 0cc259a |
+| M2 no error boundary | Fixed (runCli try/catch; resolver+baseline guards) | f9db4aa |
+| M3 empty-repo 100% | Fixed (active gate over 0 files fails) | f9db4aa |
+| M4 multi-`@partOf` double-count | Fixed (filesInMultipleSeams + note) | 777dcdf |
+| M5 shebang | Fixed (insert below shebang) | 8287be5 |
+| L1 brace wildcards | Fixed (translate, not escape) | e012930 |
+| L2 partOf order | Fixed (sort on merge) | 8287be5 |
+| L3 intra-line dupes | Fixed (dedupe) | 8287be5 |
+| T2 seam-key validation | Fixed (reject malformed at load) | dfbc5ad |
+| T3 isPartOfFor guard | Fixed (verify category/capture) | dfbc5ad |
+| T4 config type drift | Fixed (shared ConfigDefaults base) | dfbc5ad |
+
+**Deferred (judgment call):** **T1** (model `@uses` as a discriminated union). The *bug* it
+targets — `usesState`/`uses` disagreeing — is now impossible in practice: the parser computes both
+from the same block in one pass (H2). The DU is a structural nicety with no further behavioral gain
+and touches every read site (`report`/`check`/`patcher`), so it's left for a future refactor.
+**M5 JSDoc-stacking** and **L1 trailing `/**`** were judged non-issues (a prepended block keeps a
+doc adjacent to its target; `dir/**` matching only children is gitignore-consistent) — pinned, not
+changed.
+
+---
+
+
 Four independent adversarial reviewers (correctness, silent-failure, test-coverage, type-design) against `main` @ `0721429`. Findings deduplicated and severity-ranked. Several were **empirically verified** by the reviewers running the real code. None is a crash-on-load — the tool works — but there's a cluster of "green on broken input/config" failure modes that matter for a tool whose whole point is trust.
 
 Fix order should be test-first (each finding below names the regression test to add).
