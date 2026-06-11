@@ -10,6 +10,11 @@ export type Captures = Record<number, string>;
 
 const escapeChar = (c: string): string => (/[.+^${}()|[\]\\/]/.test(c) ? `\\${c}` : c);
 
+// Translate one brace-alternation option, honouring `*`/`?` within it (so
+// `{j*,ts}` matches `js`) rather than escaping them to literals.
+const translateOption = (opt: string): string =>
+  [...opt].map((c) => (c === '*' ? '[^/]*' : c === '?' ? '[^/]' : escapeChar(c))).join('');
+
 const globToRegex = (pattern: string): { re: RegExp; captureNums: number[] } => {
   const captureNums: number[] = [];
   let re = '^';
@@ -42,7 +47,7 @@ const globToRegex = (pattern: string): { re: RegExp; captureNums: number[] } => 
         const opts = pattern
           .slice(i + 1, end)
           .split(',')
-          .map((o) => [...o].map(escapeChar).join(''))
+          .map(translateOption)
           .join('|');
         re += `(?:${opts})`;
         i = end + 1;

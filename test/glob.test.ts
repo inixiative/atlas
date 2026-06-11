@@ -40,6 +40,33 @@ describe('matchGlob', () => {
   });
 });
 
+describe('matchGlob — edge matrix', () => {
+  test('captures can be numbered out of order', () => {
+    expect(matchGlob('a/$2/$1/x.ts', 'a/foo/bar/x.ts')).toEqual({ 1: 'bar', 2: 'foo' });
+  });
+
+  test('** mid-pattern spans segments and is optional', () => {
+    expect(matchGlob('src/**/x.ts', 'src/a/b/x.ts')).toEqual({});
+    expect(matchGlob('src/**/x.ts', 'src/x.ts')).toEqual({});
+  });
+
+  test('regex-special characters in literals are escaped, not interpreted', () => {
+    expect(matchGlob('a.ts', 'axts')).toBeNull(); // '.' is literal, not "any char"
+    expect(matchGlob('a+b.ts', 'a+b.ts')).toEqual({});
+    expect(matchGlob('price$.ts', 'price$.ts')).toEqual({}); // lone $ (not $<digit>) is literal
+  });
+
+  test('a captured segment is greedy within the segment', () => {
+    expect(matchGlob('a/$1.ts', 'a/foo.bar.ts')).toEqual({ 1: 'foo.bar' });
+  });
+
+  test('wildcards inside a brace alternation are honoured, not escaped', () => {
+    expect(matchGlob('x.{j*,ts}', 'x.js')).toEqual({}); // j* matches "js"
+    expect(matchGlob('x.{j*,ts}', 'x.ts')).toEqual({});
+    expect(matchGlob('x.{j*,ts}', 'x.py')).toBeNull();
+  });
+});
+
 describe('matchesAny', () => {
   test('is true when any pattern matches', () => {
     expect(matchesAny(['**/*.test.ts', '**/index.ts'], 'a/b/index.ts')).toBe(true);
