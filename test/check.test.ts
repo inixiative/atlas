@@ -11,7 +11,6 @@ const ann = (partial: Partial<AtlasAnnotation>): AtlasAnnotation => ({
   partOf: [],
   uses: [],
   usesState: 'absent',
-  concern: [],
   constructs: [],
   pinned: false,
   axes: {},
@@ -29,12 +28,11 @@ describe('analyze', () => {
 });
 
 describe('checkVocab', () => {
-  test('flags @kind/@concern not in vocab and @partOf/@uses not in the registry', () => {
+  test('flags @kind not in vocab and @partOf/@uses not in the registry', () => {
     const problems = checkVocab({
       root: '/x',
       config: {
         kinds: ['controller'],
-        concerns: ['money'],
         seams: { 'feature:billing': {} },
         stamp: [],
         ignore: [],
@@ -48,24 +46,22 @@ describe('checkVocab', () => {
             kind: ['bogus'],
             partOf: ['feature:ghost'],
             uses: ['infrastructure:nope'],
-            concern: ['unknownConcern'],
           }),
         },
       ],
     });
     const messages = problems.map((p) => p.message).join('\n');
-    expect(problems.length).toBe(4);
+    expect(problems.length).toBe(3);
     expect(messages).toContain('bogus');
     expect(messages).toContain('feature:ghost');
     expect(messages).toContain('infrastructure:nope');
-    expect(messages).toContain('unknownConcern');
   });
 
   test('passes clean annotations', () => {
     expect(
       checkVocab({
         root: '/x',
-        config: { kinds: ['controller'], concerns: [], seams: { 'feature:billing': {} }, stamp: [], ignore: [], include: [], references: {} },
+        config: { kinds: ['controller'], seams: { 'feature:billing': {} }, stamp: [], ignore: [], include: [], references: {} },
         files: [{ path: 'a.ts', annotation: ann({ kind: ['controller'], partOf: ['feature:billing'] }) }],
       }),
     ).toEqual([]);
@@ -79,7 +75,6 @@ describe('checkReferences — resolver safety', () => {
       root: '/x',
       config: {
         kinds: [],
-        concerns: [],
         seams: { 'feature:x': { docs: ['A.md'] } },
         stamp: [],
         ignore: [],

@@ -14,7 +14,6 @@ repo defines its own vocabulary.**
  * @kind controller
  * @partOf feature:tenancy
  * @uses primitive:authz, infrastructure:redis
- * @concern tenantIsolation
  */
 ```
 
@@ -38,14 +37,13 @@ atlas is Bun-native (it imports your `.atlas/*.ts` config directly).
 
 ## Configure
 
-A consuming repo gets a `.atlas/` folder. atlas ships sensible default `kinds`/`concerns`; the
+A consuming repo gets a `.atlas/` folder. atlas ships a sensible default `kinds` vocab; the
 repo **owns** its seam registry.
 
 ```
 .atlas/
   config.ts     // stamp rules (path → tags) + ignore + reference resolvers
   kinds.ts      // @kind vocab — extends atlas's defaults
-  concerns.ts   // @concern vocab — extends atlas's defaults
   seams.ts      // the seam registry — repo-OWNED, structure only
 ```
 
@@ -126,7 +124,6 @@ calls; agents left to `grep` took 2–3× as many and risk missing the transitiv
 | What is this? | `@kind` | closed enum | 1+, e.g. `entrypoint, registry` |
 | What is it part of? | `@partOf` | `class:name` seam(s) | membership; multi is normal |
 | What does it use? | `@uses` | `class:name` seam(s) | dependency, load-bearing only |
-| Cross-cutting props? | `@concern` | closed enum | 0+ |
 | What does it build? | `@constructs` | factory output | constructors only |
 
 All axes are multi-valued (comma-separated on one line). `@atlas` opens the block.
@@ -149,7 +146,7 @@ Blanks are fillable on demand — the `eslint --fix` shape. Always **dry-run by 
 - **Targeting** — `all` (default), a folder, or a single file.
 - **Additive (default)** — fill only what's absent; never modify an existing tag; never touch `@uses`.
 - **Overwrite (`--overwrite`)** — resync the derivable axes (`@kind`/`@partOf`) to the current
-  rules; **never** overwrites curated `@uses`/`@concern`. A `@atlas pin` block is exempt.
+  rules; **never** overwrites curated `@uses`. A `@atlas pin` block is exempt.
 
 ## CI
 
@@ -177,7 +174,7 @@ atlas coverage --update-baseline # record the current count (commit the baseline
 ## Enforcement: existence, NOT correctness
 
 `atlas check` verifies annotations **exist and use valid vocabulary** — presence of a block, that
-`@kind`/`@concern` are in the vocab, that `@partOf`/`@uses` name a seam that exists, and that a
+`@kind` is in the vocab, that `@partOf`/`@uses` name a seam that exists, and that a
 seam's doc/ticket references resolve. It explicitly does **not** reconcile the import graph, judge
 whether a `@partOf` is "really true," or derive any status. Those are fool's errands that trade a
 clear structural guarantee for a fragile proxy.

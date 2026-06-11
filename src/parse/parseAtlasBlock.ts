@@ -8,7 +8,6 @@ export type AtlasAnnotation = {
   partOf: string[];
   uses: string[];
   usesState: UsesState;
-  concern: string[];
   constructs: string[];
   // `@atlas pin` on the opener — exempts the file's derivable axes from
   // `atlas stamp --overwrite` (a hand-curated overload the rules must not clobber).
@@ -98,7 +97,6 @@ export const parseAtlasBlock = (source: string): AtlasAnnotation | null => {
     partOf: axes.partOf ?? [],
     uses,
     usesState,
-    concern: axes.concern ?? [],
     constructs: axes.constructs ?? [],
     pinned,
     axes,

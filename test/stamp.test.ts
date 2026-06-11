@@ -39,11 +39,11 @@ describe('stampFor', () => {
   });
 
   test('composes contributions from every matching rule (not first-match-wins)', () => {
-    const r: StampRule[] = [...rules, { include: '**/billing/**', concern: 'money' }];
+    const r: StampRule[] = [...rules, { include: '**/controllers/**', constructs: 'controller' }];
     const s = stampFor('apps/api/src/modules/billing/controllers/create.ts', r, registry);
     expect(s.kind).toEqual(['controller']);
     expect(s.partOf).toEqual(['feature:billing']);
-    expect(s.concern).toEqual(['money']);
+    expect(s.constructs).toEqual(['controller']);
   });
 
   test('dedupes values contributed by more than one rule', () => {

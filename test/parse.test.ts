@@ -19,7 +19,6 @@ describe('parseAtlasBlock', () => {
     expect(ann?.partOf).toEqual(['feature:tenancy']);
     expect(ann?.uses).toEqual(['primitive:authz', 'infrastructure:redis']);
     expect(ann?.usesState).toBe('values');
-    expect(ann?.concern).toEqual(['tenantIsolation']);
   });
 
   test('distinguishes the three @uses curation states', () => {

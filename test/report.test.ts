@@ -29,7 +29,7 @@ describe('buildCoverageReport', () => {
   test('reports filesInMultipleSeams so category sums exceeding the total are explained', async () => {
     const report = buildCoverageReport({
       root: '/x',
-      config: { kinds: [], concerns: [], seams: { 'feature:a': {}, 'feature:b': {} }, stamp: [], ignore: [], include: [], references: {} },
+      config: { kinds: [], seams: { 'feature:a': {}, 'feature:b': {} }, stamp: [], ignore: [], include: [], references: {} },
       files: [
         {
           path: 'x.ts',
@@ -38,7 +38,6 @@ describe('buildCoverageReport', () => {
             partOf: ['feature:a', 'feature:b'],
             uses: [],
             usesState: 'absent',
-            concern: [],
             constructs: [],
             pinned: false,
             axes: {},

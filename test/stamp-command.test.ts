@@ -9,7 +9,6 @@ import { parseAtlasBlock } from '../src/parse/parseAtlasBlock.ts';
 
 const config: LoadedConfig = {
   kinds: [],
-  concerns: [],
   seams: { 'feature:billing': { module: ['billing'] } },
   stamp: [
     { include: '**/controllers/**', kind: 'controller' },

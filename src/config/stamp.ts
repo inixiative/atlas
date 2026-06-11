@@ -8,7 +8,6 @@ import { type Captures, matchGlob } from './glob.ts';
 export type ResolvedStamp = {
   kind: string[];
   partOf: string[];
-  concern: string[];
   constructs: string[];
   // partOfFor captures that matched no seam — surfaced by `coverage`, never an error.
   unresolved: { category: string; value: string }[];
@@ -59,7 +58,6 @@ const resolveTag = (
 export const stampFor = (path: string, rules: StampRule[], registry: SeamRegistry): ResolvedStamp => {
   const kind: string[] = [];
   const partOf: string[] = [];
-  const concern: string[] = [];
   const constructs: string[] = [];
   const unresolved: { category: string; value: string }[] = [];
 
@@ -74,14 +72,12 @@ export const stampFor = (path: string, rules: StampRule[], registry: SeamRegistr
 
     if (rule.kind) kind.push(...resolveTag(rule.kind, caps, registry, unresolved));
     if (rule.partOf) partOf.push(...resolveTag(rule.partOf, caps, registry, unresolved));
-    if (rule.concern) concern.push(...resolveTag(rule.concern, caps, registry, unresolved));
     if (rule.constructs) constructs.push(...resolveTag(rule.constructs, caps, registry, unresolved));
   }
 
   return {
     kind: dedupe(kind),
     partOf: dedupe(partOf).sort(),
-    concern: dedupe(concern),
     constructs: dedupe(constructs),
     unresolved,
   };

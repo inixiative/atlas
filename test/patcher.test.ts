@@ -90,18 +90,16 @@ describe('applyStamp — overwrite', () => {
     ' * @kind controller, entrypoint',
     ' * @partOf feature:old',
     ' * @uses primitive:authz',
-    ' * @concern money',
     ' */',
     'code()',
   ].join('\n');
 
-  test('resyncs @kind/@partOf to the rules but preserves curated @uses/@concern', () => {
+  test('resyncs @kind/@partOf to the rules but preserves curated @uses', () => {
     const { content } = applyStamp(existing, { kind: ['controller'], partOf: ['feature:billing'] }, 'overwrite');
     const ann = parseAtlasBlock(content);
     expect(ann?.kind).toEqual(['controller']); // entrypoint overload dropped
     expect(ann?.partOf).toEqual(['feature:billing']); // feature:old replaced
     expect(ann?.uses).toEqual(['primitive:authz']); // curated, preserved
-    expect(ann?.concern).toEqual(['money']); // curated, preserved
   });
 
   test('a pinned block is exempt from overwrite', () => {

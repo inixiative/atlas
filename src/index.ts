@@ -1,6 +1,5 @@
 // Public API — what a consuming repo's `.atlas/` config imports.
 export { DEFAULT_KINDS, type DefaultKind } from './vocab/kinds.ts';
-export { DEFAULT_CONCERNS, type DefaultConcern } from './vocab/concerns.ts';
 export { type SeamEntry, type SeamRegistry, seamClass, seamClasses } from './registry/types.ts';
 export { invert } from './registry/invert.ts';
 export {

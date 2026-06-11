@@ -29,7 +29,6 @@ export type StampRule = {
   include: string | string[];
   kind?: TagValue;
   partOf?: TagValue;
-  concern?: TagValue;
   constructs?: TagValue;
   // @uses is NEVER auto-stamped — absence is a signal (uncurated), so atlas
   // leaves it out entirely. There is intentionally no `uses` field here.
@@ -56,6 +55,5 @@ export const defineConfig = (config: AtlasConfigInput): AtlasConfigInput => conf
 // are loaded from the sibling .atlas/ files.
 export type LoadedConfig = ConfigDefaults & {
   kinds: readonly string[];
-  concerns: readonly string[];
   seams: SeamRegistry;
 };

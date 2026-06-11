@@ -5,18 +5,15 @@ export type BlockSpec = {
   partOf?: string[];
   uses?: string[];
   usesState?: UsesState;
-  concern?: string[];
   constructs?: string[];
   pinned?: boolean;
 };
 
 // What the rules produce for a file — the derivable axes only (@uses is never
-// auto-stamped). `concern`/`constructs` are optional because not every rule set
-// touches them.
+// auto-stamped). `constructs` is optional because not every rule set touches it.
 export type StampInput = {
   kind?: string[];
   partOf?: string[];
-  concern?: string[];
   constructs?: string[];
 };
 
@@ -32,7 +29,6 @@ export const renderBlock = (spec: BlockSpec): string => {
   if (spec.usesState === 'none') lines.push(' * @uses none');
   else if (spec.usesState === 'proposed' && spec.uses?.length) lines.push(line('uses?', spec.uses));
   else if (spec.usesState === 'values' && spec.uses?.length) lines.push(line('uses', spec.uses));
-  if (spec.concern?.length) lines.push(line('concern', spec.concern));
   if (spec.constructs?.length) lines.push(line('constructs', spec.constructs));
   lines.push(' */');
   return lines.join('\n');
@@ -71,10 +67,9 @@ export const applyStamp = (
     const spec: BlockSpec = {
       kind: resolved.kind ?? [],
       partOf: [...(resolved.partOf ?? [])].sort(),
-      concern: resolved.concern ?? [],
       constructs: resolved.constructs ?? [],
     };
-    const hasAny = [spec.kind, spec.partOf, spec.concern, spec.constructs].some((v) => v && v.length);
+    const hasAny = [spec.kind, spec.partOf, spec.constructs].some((v) => v && v.length);
     if (!hasAny) return { content: source, changed: false };
     const block = renderWithEol(spec, eol);
     const shebang = SHEBANG.exec(source)?.[0];
@@ -92,11 +87,10 @@ export const applyStamp = (
   const merged: BlockSpec =
     mode === 'overwrite'
       ? {
-          // resync the derivable axes to the rules; keep curated @uses/@concern
+          // resync the derivable axes to the rules; keep curated @uses
           kind: pick(resolved.kind, existing.kind),
           partOf: pick(resolved.partOf, existing.partOf),
           constructs: pick(resolved.constructs, existing.constructs),
-          concern: existing.concern,
           ...carryUses(existing),
           pinned: existing.pinned,
         }
@@ -104,7 +98,6 @@ export const applyStamp = (
           // additive: add what's absent, never remove, never touch @uses
           kind: union(existing.kind, resolved.kind),
           partOf: union(existing.partOf, resolved.partOf),
-          concern: union(existing.concern, resolved.concern),
           constructs: union(existing.constructs, resolved.constructs),
           ...carryUses(existing),
           pinned: existing.pinned,

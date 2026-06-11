@@ -19,18 +19,15 @@ export const checkPresence = (a: Analysis): Problem[] =>
     .filter((f) => f.annotation === null)
     .map((f) => ({ kind: 'presence' as const, file: f.path, message: 'missing @atlas block' }));
 
-// vocab existence — @kind/@concern are in the vocab; @partOf/@uses name a seam
-// that EXISTS in the registry (not: is the file really part of it).
+// vocab existence — @kind is in the vocab; @partOf/@uses name a seam that
+// EXISTS in the registry (not: is the file really part of it).
 export const checkVocab = (a: Analysis): Problem[] => {
   const kinds = new Set(a.config.kinds);
-  const concerns = new Set(a.config.concerns);
   const seams = new Set(Object.keys(a.config.seams));
   const problems: Problem[] = [];
   for (const { path, annotation } of a.files) {
     if (!annotation) continue;
     for (const k of annotation.kind) if (!kinds.has(k)) problems.push({ kind: 'vocab', file: path, message: `unknown @kind '${k}'` });
-    for (const c of annotation.concern)
-      if (!concerns.has(c)) problems.push({ kind: 'vocab', file: path, message: `unknown @concern '${c}'` });
     for (const p of annotation.partOf)
       if (!seams.has(p)) problems.push({ kind: 'vocab', file: path, message: `@partOf '${p}' is not a registered seam` });
     for (const u of annotation.uses)

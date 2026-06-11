@@ -35,7 +35,7 @@ Flags:
   --update-baseline     write the current unannotated count as the baseline (coverage)
   --baseline <path>     baseline file (default: .atlas/coverage-baseline.json)
   --write               persist changes (stamp; default is a dry-run)
-  --overwrite           resync derivable @kind/@partOf, preserving curated @uses/@concern (stamp)
+  --overwrite           resync derivable @kind/@partOf, preserving curated @uses (stamp)
   --version             print version
   --help                this help`;
 
