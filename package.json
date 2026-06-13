@@ -39,7 +39,9 @@
   "scripts": {
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "atlas": "bun run ./bin/atlas.ts"
+    "check": "bun run typecheck",
+    "atlas": "bun run ./bin/atlas.ts",
+    "prepublishOnly": "bun run check && bun run test"
   },
   "engines": {
     "bun": ">=1.0.0"
