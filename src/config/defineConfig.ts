@@ -27,6 +27,10 @@ export type TagValue = string | string[] | PartOfForDescriptor;
 
 export type StampRule = {
   include: string | string[];
+  // paths matching `exclude` are skipped by this rule — for positional overlaps
+  // where a broad capture (e.g. `modules/$1/**`) must not claim a nested grouping
+  // (e.g. `modules/admin/**`, which has its own rules).
+  exclude?: string | string[];
   kind?: TagValue;
   partOf?: TagValue;
   constructs?: TagValue;

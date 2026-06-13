@@ -62,6 +62,11 @@ export const stampFor = (path: string, rules: StampRule[], registry: ConceptRegi
   const unresolved: { category: string; value: string }[] = [];
 
   for (const rule of rules) {
+    if (rule.exclude) {
+      const excludes = Array.isArray(rule.exclude) ? rule.exclude : [rule.exclude];
+      if (excludes.some((pattern) => matchGlob(pattern, path))) continue;
+    }
+
     const patterns = Array.isArray(rule.include) ? rule.include : [rule.include];
     let caps: Captures | null = null;
     for (const pattern of patterns) {
