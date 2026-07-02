@@ -10,13 +10,17 @@ describe('mapLimit', () => {
   test('never runs more than `limit` tasks concurrently', async () => {
     let active = 0;
     let peak = 0;
-    await mapLimit(Array.from({ length: 20 }, (_, i) => i), 4, async (n) => {
-      active++;
-      peak = Math.max(peak, active);
-      await new Promise((r) => setTimeout(r, 2));
-      active--;
-      return n;
-    });
+    await mapLimit(
+      Array.from({ length: 20 }, (_, i) => i),
+      4,
+      async (n) => {
+        active++;
+        peak = Math.max(peak, active);
+        await new Promise((r) => setTimeout(r, 2));
+        active--;
+        return n;
+      },
+    );
     expect(peak).toBeLessThanOrEqual(4);
     expect(peak).toBeGreaterThan(1); // actually parallel, not serial
   });

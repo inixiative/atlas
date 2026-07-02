@@ -23,7 +23,10 @@ describe('graph', () => {
 
   test('indexes file → its concepts', async () => {
     const g = graph(await analyze(MINI));
-    expect(g.fileToConcepts[SERVICE]).toEqual({ partOf: ['feature:billing'], uses: ['infrastructure:redis'] });
+    expect(g.fileToConcepts[SERVICE]).toEqual({
+      partOf: ['feature:billing'],
+      uses: ['infrastructure:redis'],
+    });
   });
 
   test('inverts the docs reference field: doc → concepts', async () => {

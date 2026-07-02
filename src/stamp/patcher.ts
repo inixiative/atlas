@@ -1,4 +1,9 @@
-import { type AtlasAnnotation, locateAtlasBlock, parseAtlasBlock, type UsesState } from '../parse/parseAtlasBlock.ts';
+import {
+  type AtlasAnnotation,
+  locateAtlasBlock,
+  parseAtlasBlock,
+  type UsesState,
+} from '../parse/parseAtlasBlock.ts';
 
 export type BlockSpec = {
   kind?: string[];
@@ -82,7 +87,8 @@ export const applyStamp = (
   // Overwrite is exempt on a pinned block — the hand-curated overload wins.
   if (mode === 'overwrite' && existing.pinned) return { content: source, changed: false };
 
-  const pick = (next: string[] | undefined, prev: string[]): string[] => (next && next.length ? next : prev);
+  const pick = (next: string[] | undefined, prev: string[]): string[] =>
+    next && next.length ? next : prev;
 
   const merged: BlockSpec =
     mode === 'overwrite'
@@ -107,5 +113,8 @@ export const applyStamp = (
 
   const block = renderWithEol(merged, eol);
   if (block === located.text) return { content: source, changed: false };
-  return { content: source.slice(0, located.start) + block + source.slice(located.end), changed: true };
+  return {
+    content: source.slice(0, located.start) + block + source.slice(located.end),
+    changed: true,
+  };
 };

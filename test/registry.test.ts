@@ -45,7 +45,10 @@ describe('invert', () => {
       'primitive:appEvents': { module: ['appEvents', 'emailBridge'] },
       'feature:email': { module: ['email', 'emailBridge'] },
     };
-    expect(invert(registry, 'module').emailBridge).toEqual(['feature:email', 'primitive:appEvents']);
+    expect(invert(registry, 'module').emailBridge).toEqual([
+      'feature:email',
+      'primitive:appEvents',
+    ]);
   });
 
   test('inverts any consumer-defined field, including references (doc → concepts)', () => {

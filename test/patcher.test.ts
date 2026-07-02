@@ -11,15 +11,17 @@ describe('renderBlock', () => {
 
   test('joins multi-valued axes with commas and includes @constructs', () => {
     expect(renderBlock({ kind: ['constructor'], constructs: ['controller', 'job'] })).toBe(
-      ['/**', ' * @atlas', ' * @kind constructor', ' * @constructs controller, job', ' */'].join('\n'),
+      ['/**', ' * @atlas', ' * @kind constructor', ' * @constructs controller, job', ' */'].join(
+        '\n',
+      ),
     );
   });
 
   test('renders the three @uses states', () => {
     expect(renderBlock({ kind: ['helper'], usesState: 'none' })).toContain(' * @uses none');
-    expect(renderBlock({ kind: ['job'], uses: ['infrastructure:redis'], usesState: 'proposed' })).toContain(
-      ' * @uses? infrastructure:redis',
-    );
+    expect(
+      renderBlock({ kind: ['job'], uses: ['infrastructure:redis'], usesState: 'proposed' }),
+    ).toContain(' * @uses? infrastructure:redis');
     expect(renderBlock({ kind: ['c'], uses: ['primitive:authz'], usesState: 'values' })).toContain(
       ' * @uses primitive:authz',
     );
@@ -29,7 +31,10 @@ describe('renderBlock', () => {
 describe('applyStamp — new block', () => {
   test('inserts a fresh block at the top of an unannotated file', () => {
     const src = "import { x } from 'y';\n";
-    const { content, changed } = applyStamp(src, { kind: ['controller'], partOf: ['feature:billing'] });
+    const { content, changed } = applyStamp(src, {
+      kind: ['controller'],
+      partOf: ['feature:billing'],
+    });
     expect(changed).toBe(true);
     const ann = parseAtlasBlock(content);
     expect(ann?.kind).toEqual(['controller']);
@@ -39,7 +44,14 @@ describe('applyStamp — new block', () => {
 });
 
 describe('applyStamp — additive (default)', () => {
-  const existing = ['/**', ' * @atlas', ' * @kind controller', ' * @uses primitive:authz', ' */', 'code()'].join('\n');
+  const existing = [
+    '/**',
+    ' * @atlas',
+    ' * @kind controller',
+    ' * @uses primitive:authz',
+    ' */',
+    'code()',
+  ].join('\n');
 
   test('adds missing derivable values without touching curated @uses', () => {
     const { content } = applyStamp(existing, { kind: ['controller'], partOf: ['feature:billing'] });
@@ -50,21 +62,42 @@ describe('applyStamp — additive (default)', () => {
   });
 
   test('never removes a hand-added value that the rules did not produce', () => {
-    const withOverload = ['/**', ' * @atlas', ' * @kind controller, entrypoint', ' */', 'code()'].join('\n');
+    const withOverload = [
+      '/**',
+      ' * @atlas',
+      ' * @kind controller, entrypoint',
+      ' */',
+      'code()',
+    ].join('\n');
     const { content } = applyStamp(withOverload, { kind: ['controller'] });
     expect(parseAtlasBlock(content)?.kind).toEqual(['controller', 'entrypoint']);
   });
 
   test('is idempotent — re-stamping the same values reports no change', () => {
-    const { content: once } = applyStamp(existing, { kind: ['controller'], partOf: ['feature:billing'] });
-    const { changed } = applyStamp(once, { kind: ['controller'], partOf: ['feature:billing'] }, 'additive');
+    const { content: once } = applyStamp(existing, {
+      kind: ['controller'],
+      partOf: ['feature:billing'],
+    });
+    const { changed } = applyStamp(
+      once,
+      { kind: ['controller'], partOf: ['feature:billing'] },
+      'additive',
+    );
     expect(changed).toBe(false);
   });
 });
 
 describe('applyStamp — CRLF & placement', () => {
   test('a CRLF file already matching the rules re-stamps to no change (idempotent)', () => {
-    const crlf = ['/**', ' * @atlas', ' * @kind controller', ' * @partOf feature:billing', ' */', 'code()', ''].join('\r\n');
+    const crlf = [
+      '/**',
+      ' * @atlas',
+      ' * @kind controller',
+      ' * @partOf feature:billing',
+      ' */',
+      'code()',
+      '',
+    ].join('\r\n');
     const { changed } = applyStamp(crlf, { kind: ['controller'], partOf: ['feature:billing'] });
     expect(changed).toBe(false);
   });
@@ -95,7 +128,11 @@ describe('applyStamp — overwrite', () => {
   ].join('\n');
 
   test('resyncs @kind/@partOf to the rules but preserves curated @uses', () => {
-    const { content } = applyStamp(existing, { kind: ['controller'], partOf: ['feature:billing'] }, 'overwrite');
+    const { content } = applyStamp(
+      existing,
+      { kind: ['controller'], partOf: ['feature:billing'] },
+      'overwrite',
+    );
     const ann = parseAtlasBlock(content);
     expect(ann?.kind).toEqual(['controller']); // entrypoint overload dropped
     expect(ann?.partOf).toEqual(['feature:billing']); // feature:old replaced
@@ -104,7 +141,11 @@ describe('applyStamp — overwrite', () => {
 
   test('a pinned block is exempt from overwrite', () => {
     const pinned = existing.replace(' * @atlas', ' * @atlas pin');
-    const { content, changed } = applyStamp(pinned, { kind: ['controller'], partOf: ['feature:billing'] }, 'overwrite');
+    const { content, changed } = applyStamp(
+      pinned,
+      { kind: ['controller'], partOf: ['feature:billing'] },
+      'overwrite',
+    );
     expect(changed).toBe(false);
     expect(parseAtlasBlock(content)?.partOf).toEqual(['feature:old']);
   });

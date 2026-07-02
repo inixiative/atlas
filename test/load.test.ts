@@ -7,7 +7,10 @@ import { walkFiles } from '../src/fs/walk.ts';
 
 const MINI = resolve(import.meta.dir, 'fixtures/mini');
 
-const withTempAtlas = async (files: Record<string, string>, fn: (dir: string) => Promise<void>): Promise<void> => {
+const withTempAtlas = async (
+  files: Record<string, string>,
+  fn: (dir: string) => Promise<void>,
+): Promise<void> => {
   const dir = await mkdtemp(join(tmpdir(), 'atlas-load-'));
   try {
     for (const [rel, content] of Object.entries(files)) await Bun.write(resolve(dir, rel), content);
@@ -25,16 +28,22 @@ describe('loadConfig — loud on misconfiguration', () => {
   });
 
   test('a bare classless tag is allowed (e.g. a derived cross-cutting marker)', async () => {
-    await withTempAtlas({ '.atlas/concepts.ts': "export const CONCEPTS = { superadmin: {}, 'feature:x': {} };\n" }, async (dir) => {
-      const cfg = await loadConfig(dir);
-      expect(cfg.concepts.superadmin).toBeDefined();
-    });
+    await withTempAtlas(
+      { '.atlas/concepts.ts': "export const CONCEPTS = { superadmin: {}, 'feature:x': {} };\n" },
+      async (dir) => {
+        const cfg = await loadConfig(dir);
+        expect(cfg.concepts.superadmin).toBeDefined();
+      },
+    );
   });
 
   test('a key with an empty class or name side throws', async () => {
-    await withTempAtlas({ '.atlas/concepts.ts': "export const CONCEPTS = { 'feature:': {} };\n" }, async (dir) => {
-      expect(loadConfig(dir)).rejects.toThrow(/feature:/);
-    });
+    await withTempAtlas(
+      { '.atlas/concepts.ts': "export const CONCEPTS = { 'feature:': {} };\n" },
+      async (dir) => {
+        expect(loadConfig(dir)).rejects.toThrow(/feature:/);
+      },
+    );
   });
 
   test('no .atlas/ at all falls back to defaults without throwing', async () => {

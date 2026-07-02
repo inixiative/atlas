@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
-import { DEFAULT_KINDS } from '../vocab/kinds.ts';
 import { DEFAULT_INCLUDE } from '../fs/walk.ts';
 import type { ConceptRegistry } from '../registry/types.ts';
+import { DEFAULT_KINDS } from '../vocab/kinds.ts';
 import type { AtlasConfigInput, LoadedConfig } from './defineConfig.ts';
 
 // Import a `.atlas/` file if it exists; missing files are optional (atlas ships
@@ -14,7 +14,11 @@ const loadModule = async (path: string): Promise<Record<string, unknown> | null>
 // Pull a named export. A file that is PRESENT but exports none of `names` is a
 // misconfiguration, not an "absent → use default" — throw loudly rather than
 // silently degrading (e.g. an empty concept registry that passes CI against nothing).
-const named = <T>(mod: Record<string, unknown> | null, file: string, ...names: string[]): T | undefined => {
+const named = <T>(
+  mod: Record<string, unknown> | null,
+  file: string,
+  ...names: string[]
+): T | undefined => {
   if (!mod) return undefined;
   for (const n of names) if (mod[n] !== undefined) return mod[n] as T;
   throw new Error(`.atlas/${file} exists but exports none of: ${names.join(', ')}`);
@@ -41,7 +45,9 @@ export const loadConfig = async (root: string): Promise<LoadedConfig> => {
   for (const key of Object.keys(concepts)) {
     const colon = key.indexOf(':');
     if (key.length === 0 || colon === 0 || colon === key.length - 1) {
-      throw new Error(`.atlas/concepts.ts: malformed concept key '${key}' — use 'class:name' or a bare tag`);
+      throw new Error(
+        `.atlas/concepts.ts: malformed concept key '${key}' — use 'class:name' or a bare tag`,
+      );
     }
   }
 

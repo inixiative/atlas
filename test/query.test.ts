@@ -1,19 +1,44 @@
 import { describe, expect, test } from 'bun:test';
 import { resolve } from 'node:path';
 import { analyze } from '../src/analyze.ts';
-import { flagsToRule, type QueryRecord, type QueryRule, queryFiles, toQueryRecords } from '../src/commands/query.ts';
+import {
+  flagsToRule,
+  type QueryRecord,
+  type QueryRule,
+  queryFiles,
+  toQueryRecords,
+} from '../src/commands/query.ts';
 
 const MINI = resolve(import.meta.dir, 'fixtures/mini');
 
 const records: QueryRecord[] = [
-  { path: 'a/createInvoice.ts', kind: ['controller'], partOf: ['feature:billing'], uses: ['infrastructure:redis'] },
-  { path: 'a/charge.ts', kind: ['service'], partOf: ['feature:billing'], uses: ['primitive:caching'] },
-  { path: 'b/adminCacheClear.ts', kind: ['controller'], partOf: ['primitive:caching', 'superadmin'], uses: [] },
+  {
+    path: 'a/createInvoice.ts',
+    kind: ['controller'],
+    partOf: ['feature:billing'],
+    uses: ['infrastructure:redis'],
+  },
+  {
+    path: 'a/charge.ts',
+    kind: ['service'],
+    partOf: ['feature:billing'],
+    uses: ['primitive:caching'],
+  },
+  {
+    path: 'b/adminCacheClear.ts',
+    kind: ['controller'],
+    partOf: ['primitive:caching', 'superadmin'],
+    uses: [],
+  },
 ];
 
 describe('flagsToRule', () => {
   test('a single flag becomes one contains predicate', () => {
-    expect(flagsToRule({ kind: 'controller' })).toEqual({ field: 'kind', operator: 'contains', value: 'controller' });
+    expect(flagsToRule({ kind: 'controller' })).toEqual({
+      field: 'kind',
+      operator: 'contains',
+      value: 'controller',
+    });
   });
 
   test('multiple flags AND together', () => {
@@ -53,7 +78,11 @@ describe('queryFiles', () => {
         },
       ],
     } as QueryRule;
-    expect(queryFiles(records, rule).map((r) => r.path).sort()).toEqual(['a/createInvoice.ts', 'b/adminCacheClear.ts']);
+    expect(
+      queryFiles(records, rule)
+        .map((r) => r.path)
+        .sort(),
+    ).toEqual(['a/createInvoice.ts', 'b/adminCacheClear.ts']);
   });
 });
 

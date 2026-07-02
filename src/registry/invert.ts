@@ -13,7 +13,8 @@ export const invert = (registry: ConceptRegistry, field: string): Record<string,
     const values = entry[field];
     if (!values) continue;
     for (const value of values) {
-      (out[value] ??= []).push(conceptKey);
+      out[value] ??= [];
+      out[value].push(conceptKey);
     }
   }
   for (const value of Object.keys(out)) out[value]!.sort();

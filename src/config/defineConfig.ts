@@ -18,7 +18,9 @@ export const partOfFor = (category: string, capture: string): PartOfForDescripto
 export const isPartOfFor = (v: unknown): v is PartOfForDescriptor => {
   if (typeof v !== 'object' || v === null) return false;
   const d = v as Partial<PartOfForDescriptor>;
-  return d.__atlasPartOfFor === true && typeof d.category === 'string' && typeof d.capture === 'string';
+  return (
+    d.__atlasPartOfFor === true && typeof d.category === 'string' && typeof d.capture === 'string'
+  );
 };
 
 // A tag value is a literal string (with optional `$n` interpolation), a list of

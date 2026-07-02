@@ -1,4 +1,4 @@
-import type { CoverageReport, ConceptGraph } from '../commands/report.ts';
+import type { ConceptGraph, CoverageReport } from '../commands/report.ts';
 
 // JSON embedded in a <script> tag must not contain a literal </script> or a
 // raw '<'; escaping '<' is sufficient and keeps it valid JSON.

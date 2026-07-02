@@ -46,7 +46,9 @@ describe('parseAtlasBlock', () => {
   });
 
   test('captures @constructs for factories', () => {
-    const ann = parseAtlasBlock(block(' * @atlas\n * @kind constructor\n * @constructs controller'));
+    const ann = parseAtlasBlock(
+      block(' * @atlas\n * @kind constructor\n * @constructs controller'),
+    );
     expect(ann?.constructs).toEqual(['controller']);
   });
 
@@ -61,7 +63,8 @@ describe('parseAtlasBlock', () => {
   });
 
   test('parses CRLF blocks identically to LF (no stray \\r in values)', () => {
-    const crlf = '/**\r\n * @atlas\r\n * @kind controller\r\n * @partOf feature:billing\r\n * @uses primitive:authz\r\n */\r\ncode\r\n';
+    const crlf =
+      '/**\r\n * @atlas\r\n * @kind controller\r\n * @partOf feature:billing\r\n * @uses primitive:authz\r\n */\r\ncode\r\n';
     const ann = parseAtlasBlock(crlf);
     expect(ann?.kind).toEqual(['controller']);
     expect(ann?.partOf).toEqual(['feature:billing']);

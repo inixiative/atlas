@@ -5,7 +5,7 @@ import { coverage, evaluateCoverageGate, readBaseline } from './commands/coverag
 import { generate } from './commands/generate.ts';
 import { graph } from './commands/graph.ts';
 import { flagsToRule, type QueryRule, queryFiles, toQueryRecords } from './commands/query.ts';
-import { buildCoverageReport, buildConceptGraph } from './commands/report.ts';
+import { buildConceptGraph, buildCoverageReport } from './commands/report.ts';
 import { inScope, runStamp } from './commands/stamp.ts';
 import { renderCoverageHtml } from './render/html.ts';
 import { renderCoverageMarkdown } from './render/markdown.ts';
@@ -59,7 +59,10 @@ const parseArgs = (args: string[]): { flags: Flags; positionals: string[] } => {
         // Don't swallow the next flag as a value: `--min --json` leaves min empty
         // (caught downstream) rather than silently capturing '--json'.
         const next = args[i + 1];
-        flags[key] = next !== undefined && !next.startsWith('--') ? (i++, next) : '';
+        if (next !== undefined && !next.startsWith('--')) {
+          flags[key] = next;
+          i++;
+        } else flags[key] = '';
       } else flags[key] = true;
     } else positionals.push(a);
   }
@@ -67,11 +70,17 @@ const parseArgs = (args: string[]): { flags: Flags; positionals: string[] } => {
 };
 
 const version = async (): Promise<string> => {
-  const pkg = (await import('../package.json')) as { version?: string; default?: { version?: string } };
+  const pkg = (await import('../package.json')) as {
+    version?: string;
+    default?: { version?: string };
+  };
   return pkg.version ?? pkg.default?.version ?? '0.0.0';
 };
 
-export const runCli = async (argv: string[], env: { cwd: string }): Promise<{ code: number; out: string }> => {
+export const runCli = async (
+  argv: string[],
+  env: { cwd: string },
+): Promise<{ code: number; out: string }> => {
   const out: string[] = [];
   const log = (s = ''): void => void out.push(s);
   const done = (code: number) => ({ code, out: out.join('\n') });
@@ -82,7 +91,8 @@ export const runCli = async (argv: string[], env: { cwd: string }): Promise<{ co
   const json = flags.json === true;
 
   if (flags.version === true) return { code: 0, out: await version() };
-  if (flags.help === true || command === undefined || command === 'help') return { code: 0, out: HELP };
+  if (flags.help === true || command === undefined || command === 'help')
+    return { code: 0, out: HELP };
 
   // Error boundary: any thrown error (bad config, IO, corrupt baseline) becomes a
   // clean one-line message + exit 1, never an unhandled rejection / stack trace.
@@ -111,24 +121,35 @@ const dispatch = async (
       const target = positionals[1];
       const warnOnly = flags['warn-only'] === true;
       const full = await analyze(root);
-      const scoped = target ? { ...full, files: full.files.filter((f) => inScope(f.path, target)) } : full;
+      const scoped = target
+        ? { ...full, files: full.files.filter((f) => inScope(f.path, target)) }
+        : full;
       const result = await runCheck(scoped, { references: target === undefined });
 
       if (json) log(JSON.stringify({ ...result, warnOnly }, null, 2));
       else if (result.ok) log('✓ atlas check passed');
       else {
-        log(`${warnOnly ? '⚠' : '✗'} atlas check: ${result.problems.length} problem(s)${warnOnly ? ' — warn-only' : ''}`);
-        for (const p of result.problems) log(`  [${p.kind}] ${p.file ?? p.concept ?? ''} — ${p.message}`);
+        log(
+          `${warnOnly ? '⚠' : '✗'} atlas check: ${result.problems.length} problem(s)${warnOnly ? ' — warn-only' : ''}`,
+        );
+        for (const p of result.problems)
+          log(`  [${p.kind}] ${p.file ?? p.concept ?? ''} — ${p.message}`);
       }
       return done(result.ok || warnOnly ? 0 : 1);
     }
 
     case 'coverage': {
       const c = coverage(await analyze(root));
-      const baselinePath = resolve(root, (flags.baseline as string) || '.atlas/coverage-baseline.json');
+      const baselinePath = resolve(
+        root,
+        (flags.baseline as string) || '.atlas/coverage-baseline.json',
+      );
 
       if (flags['update-baseline'] === true) {
-        await Bun.write(baselinePath, `${JSON.stringify({ unannotated: c.unannotated.length }, null, 2)}\n`);
+        await Bun.write(
+          baselinePath,
+          `${JSON.stringify({ unannotated: c.unannotated.length }, null, 2)}\n`,
+        );
         log(`✓ wrote coverage baseline: ${c.unannotated.length} unannotated`);
         return done(0);
       }
@@ -157,9 +178,17 @@ const dispatch = async (
         log(JSON.stringify({ ...c, percent: gate.percent, gate }, null, 2));
       } else {
         log(`Coverage: ${c.annotated}/${c.total} files annotated (${gate.percent.toFixed(1)}%)`);
-        if (c.unannotated.length) log(`  unannotated (${c.unannotated.length}):\n${c.unannotated.map((f) => `    ${f}`).join('\n')}`);
-        log(`  @uses — curated ${c.uses.curated.length}, curated-empty ${c.uses.curatedEmpty.length}, proposed ${c.uses.proposed.length}, uncurated ${c.uses.uncurated.length}`);
-        if (c.unresolved.length) log(`  unresolved memberships (${c.unresolved.length}):\n${c.unresolved.map((u) => `    ${u.file}: ${u.category}:${u.value}`).join('\n')}`);
+        if (c.unannotated.length)
+          log(
+            `  unannotated (${c.unannotated.length}):\n${c.unannotated.map((f) => `    ${f}`).join('\n')}`,
+          );
+        log(
+          `  @uses — curated ${c.uses.curated.length}, curated-empty ${c.uses.curatedEmpty.length}, proposed ${c.uses.proposed.length}, uncurated ${c.uses.uncurated.length}`,
+        );
+        if (c.unresolved.length)
+          log(
+            `  unresolved memberships (${c.unresolved.length}):\n${c.unresolved.map((u) => `    ${u.file}: ${u.category}:${u.value}`).join('\n')}`,
+          );
         if (!gate.ok) for (const r of gate.reasons) log(`✗ ${r}`);
         else if (gating) log('✓ coverage gate passed');
       }
@@ -171,9 +200,11 @@ const dispatch = async (
       if (json) log(JSON.stringify(g, null, 2));
       else {
         log('concept → files (@partOf):');
-        for (const concept of Object.keys(g.conceptToFiles).sort()) log(`  ${concept} (${g.conceptToFiles[concept]!.length})`);
+        for (const concept of Object.keys(g.conceptToFiles).sort())
+          log(`  ${concept} (${g.conceptToFiles[concept]!.length})`);
         log('concept → consumers (@uses):');
-        for (const concept of Object.keys(g.usesConsumers).sort()) log(`  ${concept} (${g.usesConsumers[concept]!.length})`);
+        for (const concept of Object.keys(g.usesConsumers).sort())
+          log(`  ${concept} (${g.usesConsumers[concept]!.length})`);
       }
       return done(0);
     }
@@ -197,14 +228,19 @@ const dispatch = async (
       const wantHtml = flags.md !== true || flags.html === true;
       const written: string[] = [];
       if (wantMd) {
-        await Bun.write(resolve(outDir, 'COVERAGE.md'), renderCoverageMarkdown(report, conceptGraph));
+        await Bun.write(
+          resolve(outDir, 'COVERAGE.md'),
+          renderCoverageMarkdown(report, conceptGraph),
+        );
         written.push('COVERAGE.md');
       }
       if (wantHtml) {
         await Bun.write(resolve(outDir, 'atlas.html'), renderCoverageHtml(report, conceptGraph));
         written.push('atlas.html');
       }
-      log(`✓ wrote ${written.join(', ')} (${report.total.files - report.total.missingBlock}/${report.total.files} annotated)`);
+      log(
+        `✓ wrote ${written.join(', ')} (${report.total.files - report.total.missingBlock}/${report.total.files} annotated)`,
+      );
       return done(0);
     }
 
@@ -237,9 +273,13 @@ const dispatch = async (
         }
       }
       const rule: QueryRule | null =
-        flagRule && jsonRule ? ({ all: [flagRule, jsonRule] } as QueryRule) : (jsonRule ?? flagRule);
+        flagRule && jsonRule
+          ? ({ all: [flagRule, jsonRule] } as QueryRule)
+          : (jsonRule ?? flagRule);
       if (!rule) {
-        log('query needs a json-rules predicate and/or at least one of --kind/--partOf/--uses/--path');
+        log(
+          'query needs a json-rules predicate and/or at least one of --kind/--partOf/--uses/--path',
+        );
         return done(1);
       }
       const hits = queryFiles(records, rule);
@@ -256,17 +296,23 @@ const dispatch = async (
       const write = flags.write === true;
       const { changes, unresolved } = await runStamp(root, { mode, target: positionals[1], write });
       if (json) {
-        log(JSON.stringify({ changes: changes.map((c) => ({ path: c.path })), unresolved }, null, 2));
+        log(
+          JSON.stringify({ changes: changes.map((c) => ({ path: c.path })), unresolved }, null, 2),
+        );
       } else {
         if (!changes.length) log('✓ nothing to stamp — already up to date');
         else {
-          log(`${write ? 'Wrote' : 'Would change'} ${changes.length} file(s)${write ? '' : ' (dry-run — pass --write to apply)'}:`);
+          log(
+            `${write ? 'Wrote' : 'Would change'} ${changes.length} file(s)${write ? '' : ' (dry-run — pass --write to apply)'}:`,
+          );
           for (const c of changes) log(`  ${c.path}`);
         }
         // A capture that resolves to no concept leaves the file without @partOf —
         // surface it here so the registry gap isn't invisible at write time.
         if (unresolved.length) {
-          log(`⚠ ${unresolved.length} unresolved membership(s) — left unstamped (add the concept to .atlas/concepts.ts):`);
+          log(
+            `⚠ ${unresolved.length} unresolved membership(s) — left unstamped (add the concept to .atlas/concepts.ts):`,
+          );
           for (const u of unresolved) log(`  ${u.file}: ${u.category}:${u.value}`);
         }
       }

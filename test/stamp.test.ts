@@ -35,7 +35,9 @@ describe('stampFor', () => {
 
   test('interpolates $n inside a literal string tag value', () => {
     const r: StampRule[] = [{ include: 'apps/web/$1/**', partOf: 'feature:$1' }];
-    expect(stampFor('apps/web/dashboard/page.tsx', r, registry).partOf).toEqual(['feature:dashboard']);
+    expect(stampFor('apps/web/dashboard/page.tsx', r, registry).partOf).toEqual([
+      'feature:dashboard',
+    ]);
   });
 
   test('composes contributions from every matching rule (not first-match-wins)', () => {
@@ -49,10 +51,16 @@ describe('stampFor', () => {
   test('exclude skips a rule for matching paths (positional overlap)', () => {
     const r: StampRule[] = [
       // the broad feature-module capture must NOT claim the nested admin grouping
-      { include: 'apps/api/src/modules/$1/**', exclude: 'apps/api/src/modules/admin/**', partOf: partOfFor('module', '$1') },
+      {
+        include: 'apps/api/src/modules/$1/**',
+        exclude: 'apps/api/src/modules/admin/**',
+        partOf: partOfFor('module', '$1'),
+      },
     ];
     // a normal feature module still resolves
-    expect(stampFor('apps/api/src/modules/billing/controllers/x.ts', r, registry).partOf).toEqual(['feature:billing']);
+    expect(stampFor('apps/api/src/modules/billing/controllers/x.ts', r, registry).partOf).toEqual([
+      'feature:billing',
+    ]);
     // an admin-nested file is skipped — no phantom `module:admin` unresolved
     const adminFile = stampFor('apps/api/src/modules/admin/billing/x.ts', r, registry);
     expect(adminFile.partOf).toEqual([]);

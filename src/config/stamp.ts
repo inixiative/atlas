@@ -55,7 +55,11 @@ const resolveTag = (
 };
 
 // Compose EVERY matching rule's contributions for a file (not first-match-wins).
-export const stampFor = (path: string, rules: StampRule[], registry: ConceptRegistry): ResolvedStamp => {
+export const stampFor = (
+  path: string,
+  rules: StampRule[],
+  registry: ConceptRegistry,
+): ResolvedStamp => {
   const kind: string[] = [];
   const partOf: string[] = [];
   const constructs: string[] = [];
@@ -77,7 +81,8 @@ export const stampFor = (path: string, rules: StampRule[], registry: ConceptRegi
 
     if (rule.kind) kind.push(...resolveTag(rule.kind, caps, registry, unresolved));
     if (rule.partOf) partOf.push(...resolveTag(rule.partOf, caps, registry, unresolved));
-    if (rule.constructs) constructs.push(...resolveTag(rule.constructs, caps, registry, unresolved));
+    if (rule.constructs)
+      constructs.push(...resolveTag(rule.constructs, caps, registry, unresolved));
   }
 
   return {

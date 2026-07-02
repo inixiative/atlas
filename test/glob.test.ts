@@ -1,9 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { matchGlob, matchesAny } from '../src/config/glob.ts';
+import { matchesAny, matchGlob } from '../src/config/glob.ts';
 
 describe('matchGlob', () => {
   test('matches a **-bounded directory pattern with no captures', () => {
-    expect(matchGlob('**/controllers/**', 'apps/api/src/modules/billing/controllers/create.ts')).toEqual({});
+    expect(
+      matchGlob('**/controllers/**', 'apps/api/src/modules/billing/controllers/create.ts'),
+    ).toEqual({});
   });
 
   test('returns null when the pattern does not match', () => {
@@ -11,7 +13,9 @@ describe('matchGlob', () => {
   });
 
   test('captures a single segment via $1', () => {
-    expect(matchGlob('apps/api/src/modules/$1/**', 'apps/api/src/modules/billing/services/x.ts')).toEqual({
+    expect(
+      matchGlob('apps/api/src/modules/$1/**', 'apps/api/src/modules/billing/services/x.ts'),
+    ).toEqual({
       1: 'billing',
     });
   });

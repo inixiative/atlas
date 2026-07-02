@@ -53,11 +53,15 @@ describe('runCli', () => {
       expect(JSON.parse(await Bun.file(baseline).text()).unannotated).toBe(1); // fixture has 1 unannotated
 
       // baseline equals current → passes
-      expect((await runCli(['coverage', '--ratchet', '--baseline', baseline], { cwd: MINI })).code).toBe(0);
+      expect(
+        (await runCli(['coverage', '--ratchet', '--baseline', baseline], { cwd: MINI })).code,
+      ).toBe(0);
 
       // tighten baseline to 0 → current (1) is a backslide → fails
       await Bun.write(baseline, JSON.stringify({ unannotated: 0 }));
-      expect((await runCli(['coverage', '--ratchet', '--baseline', baseline], { cwd: MINI })).code).toBe(1);
+      expect(
+        (await runCli(['coverage', '--ratchet', '--baseline', baseline], { cwd: MINI })).code,
+      ).toBe(1);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -69,14 +73,21 @@ describe('runCli', () => {
   });
 
   test('query with flags filters by axis', async () => {
-    const { code, out } = await runCli(['query', '--kind', 'controller', '--partOf', 'feature:billing'], { cwd: MINI });
+    const { code, out } = await runCli(
+      ['query', '--kind', 'controller', '--partOf', 'feature:billing'],
+      { cwd: MINI },
+    );
     expect(code).toBe(0);
     expect(out).toContain('src/modules/billing/controllers/createInvoice.ts');
     expect(out).not.toContain('charge.ts'); // a service, filtered out
   });
 
   test('query accepts a raw json-rules predicate', async () => {
-    const pred = JSON.stringify({ field: 'uses', operator: 'contains', value: 'infrastructure:redis' });
+    const pred = JSON.stringify({
+      field: 'uses',
+      operator: 'contains',
+      value: 'infrastructure:redis',
+    });
     const { code, out } = await runCli(['query', pred], { cwd: MINI });
     expect(code).toBe(0);
     expect(out).toContain('src/modules/billing/services/charge.ts'); // the redis user

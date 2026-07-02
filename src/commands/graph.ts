@@ -12,7 +12,8 @@ export type Graph = {
 };
 
 const push = (rec: Record<string, string[]>, key: string, val: string): void => {
-  (rec[key] ??= []).push(val);
+  rec[key] ??= [];
+  rec[key].push(val);
 };
 
 export const graph = (a: Analysis): Graph => {

@@ -5,7 +5,14 @@ export default defineConfig({
   include: ['apps/**/*.ts', 'apps/**/*.tsx', 'packages/**/*.ts'],
 
   // Files exempt from the presence check and from stamping (barrels, tests, generated).
-  ignore: ['**/*.test.ts', '**/*.test.tsx', '**/tests/**', '**/index.ts', '**/*.d.ts', '**/*.gen.ts'],
+  ignore: [
+    '**/*.test.ts',
+    '**/*.test.tsx',
+    '**/tests/**',
+    '**/index.ts',
+    '**/*.d.ts',
+    '**/*.gen.ts',
+  ],
 
   // Stamp rules COMPOSE (not first-match-wins) — every matching rule contributes.
   // `@uses` is never auto-stamped (its absence is a signal), so there are no @uses rules.
@@ -35,7 +42,10 @@ export default defineConfig({
     { include: ['packages/ui/**/hooks/**', 'apps/*/**/hooks/**'], kind: 'hook' }, // React hooks (not api db-hooks)
     { include: ['apps/*/**/routes/**'], kind: 'page' }, // TanStack file-based routes are pages
     { include: ['**/store/**', '**/*.store.ts'], kind: 'store' },
-    { include: ['apps/*/app/main.tsx', 'apps/*/app/client.tsx', 'apps/*/app/router.tsx'], kind: 'entrypoint' },
+    {
+      include: ['apps/*/app/main.tsx', 'apps/*/app/client.tsx', 'apps/*/app/router.tsx'],
+      kind: 'entrypoint',
+    },
 
     // @partOf from a captured path segment, resolved through your constituent
     // categories in concepts.ts. `$1` captures one segment; `partOfFor('module', '$1')`

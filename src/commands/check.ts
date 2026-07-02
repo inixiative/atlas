@@ -27,11 +27,23 @@ export const checkVocab = (a: Analysis): Problem[] => {
   const problems: Problem[] = [];
   for (const { path, annotation } of a.files) {
     if (!annotation) continue;
-    for (const k of annotation.kind) if (!kinds.has(k)) problems.push({ kind: 'vocab', file: path, message: `unknown @kind '${k}'` });
+    for (const k of annotation.kind)
+      if (!kinds.has(k))
+        problems.push({ kind: 'vocab', file: path, message: `unknown @kind '${k}'` });
     for (const p of annotation.partOf)
-      if (!concepts.has(p)) problems.push({ kind: 'vocab', file: path, message: `@partOf '${p}' is not a registered concept` });
+      if (!concepts.has(p))
+        problems.push({
+          kind: 'vocab',
+          file: path,
+          message: `@partOf '${p}' is not a registered concept`,
+        });
     for (const u of annotation.uses)
-      if (!concepts.has(u)) problems.push({ kind: 'vocab', file: path, message: `@uses '${u}' is not a registered concept` });
+      if (!concepts.has(u))
+        problems.push({
+          kind: 'vocab',
+          file: path,
+          message: `@uses '${u}' is not a registered concept`,
+        });
   }
   return problems;
 };
@@ -49,11 +61,19 @@ export const checkReferences = async (a: Analysis): Promise<Problem[]> => {
           rel = resolver(value);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          problems.push({ kind: 'reference', concept, message: `${concept}: ${field} resolver threw on '${value}': ${msg}` });
+          problems.push({
+            kind: 'reference',
+            concept,
+            message: `${concept}: ${field} resolver threw on '${value}': ${msg}`,
+          });
           continue;
         }
         if (!(await Bun.file(resolve(a.root, rel)).exists())) {
-          problems.push({ kind: 'reference', concept, message: `${concept}: ${field} reference '${value}' → ${rel} does not exist` });
+          problems.push({
+            kind: 'reference',
+            concept,
+            message: `${concept}: ${field} reference '${value}' → ${rel} does not exist`,
+          });
         }
       }
     }
@@ -64,7 +84,10 @@ export const checkReferences = async (a: Analysis): Promise<Problem[]> => {
 // Reference existence is a registry-wide concern, so it is skipped when a run is
 // scoped to a subset of files (incremental PR checks) — only the file-level
 // presence/vocab checks make sense there.
-export const runCheck = async (a: Analysis, opts: { references?: boolean } = {}): Promise<CheckResult> => {
+export const runCheck = async (
+  a: Analysis,
+  opts: { references?: boolean } = {},
+): Promise<CheckResult> => {
   const problems = [...checkPresence(a), ...checkVocab(a)];
   if (opts.references !== false) problems.push(...(await checkReferences(a)));
   return { ok: problems.length === 0, problems };

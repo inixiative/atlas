@@ -1,8 +1,9 @@
-import type { CoverageReport, Gaps, ConceptGraph } from '../commands/report.ts';
+import type { ConceptGraph, CoverageReport, Gaps } from '../commands/report.ts';
 
 // Injective sanitizer for Mermaid node ids: distinct concept ids never collide
 // (encoding the char code keeps `feature:billing` and `feature.billing` apart).
-export const safeId = (id: string): string => id.replace(/[^a-zA-Z0-9]/g, (c) => `_${c.charCodeAt(0)}_`);
+export const safeId = (id: string): string =>
+  id.replace(/[^a-zA-Z0-9]/g, (c) => `_${c.charCodeAt(0)}_`);
 
 // Escape a Mermaid quoted-label so a `"` in a concept id can't break the diagram
 // or inject directives.
@@ -23,9 +24,13 @@ const totalsTable = (t: Gaps): string =>
   ].join('\n');
 
 const pie = (t: Gaps): string =>
-  ['```mermaid', 'pie title Annotation coverage', `  "annotated" : ${t.files - t.missingBlock}`, `  "missing block" : ${t.missingBlock}`, '```'].join(
-    '\n',
-  );
+  [
+    '```mermaid',
+    'pie title Annotation coverage',
+    `  "annotated" : ${t.files - t.missingBlock}`,
+    `  "missing block" : ${t.missingBlock}`,
+    '```',
+  ].join('\n');
 
 const categoryTable = (report: CoverageReport): string => {
   const head = [
@@ -42,7 +47,11 @@ const categoryTable = (report: CoverageReport): string => {
 const conceptGraph = (graph: ConceptGraph): string => {
   const lines = ['```mermaid', 'graph LR'];
   const byClass: Record<string, typeof graph.nodes> = {};
-  for (const n of graph.nodes) (byClass[n.cls] ??= []).push(n);
+  for (const n of graph.nodes) {
+    const bucket = byClass[n.cls] ?? [];
+    byClass[n.cls] = bucket;
+    bucket.push(n);
+  }
   for (const cls of Object.keys(byClass).sort()) {
     lines.push(`  subgraph ${cls}`);
     for (const n of byClass[cls]!) lines.push(`    ${safeId(n.id)}["${safeLabel(n.id)}"]`);
@@ -72,7 +81,10 @@ export const renderCoverageMarkdown = (report: CoverageReport, graph: ConceptGra
     'Grouped by effective concept (declared `@partOf`, else the rules’ predicted concept). `@uses` columns',
     'are curation signals, not failures.',
     ...(report.filesInMultipleConcepts > 0
-      ? ['', `> ${report.filesInMultipleConcepts} file(s) belong to multiple concepts, so the per-category file counts sum to more than the total.`]
+      ? [
+          '',
+          `> ${report.filesInMultipleConcepts} file(s) belong to multiple concepts, so the per-category file counts sum to more than the total.`,
+        ]
       : []),
     '',
     categoryTable(report),

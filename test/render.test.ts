@@ -1,7 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import { resolve } from 'node:path';
 import { analyze } from '../src/analyze.ts';
-import { buildCoverageReport, type CoverageReport, buildConceptGraph, type ConceptGraph } from '../src/commands/report.ts';
+import {
+  buildConceptGraph,
+  buildCoverageReport,
+  type ConceptGraph,
+  type CoverageReport,
+} from '../src/commands/report.ts';
 import { renderCoverageHtml } from '../src/render/html.ts';
 import { renderCoverageMarkdown, safeId } from '../src/render/markdown.ts';
 
@@ -28,7 +33,10 @@ describe('mermaid safety', () => {
   });
 
   test('a quote in a concept id is escaped in the mermaid label (no diagram break / injection)', () => {
-    const graph: ConceptGraph = { nodes: [{ id: 'feature:a"x', cls: 'feature', label: 'a"x' }], edges: [] };
+    const graph: ConceptGraph = {
+      nodes: [{ id: 'feature:a"x', cls: 'feature', label: 'a"x' }],
+      edges: [],
+    };
     const md = renderCoverageMarkdown(emptyReport, graph);
     expect(md).toContain('&quot;');
     expect(md).not.toContain('a"x"]'); // raw quote would break the node label
@@ -77,7 +85,10 @@ describe('renderCoverageHtml', () => {
   });
 
   test('escapes < in embedded JSON so a concept id cannot break out of the script tag', () => {
-    const graph: ConceptGraph = { nodes: [{ id: 'feature:</script>', cls: 'feature', label: 'x' }], edges: [] };
+    const graph: ConceptGraph = {
+      nodes: [{ id: 'feature:</script>', cls: 'feature', label: 'x' }],
+      edges: [],
+    };
     const html = renderCoverageHtml(emptyReport, graph);
     const body = html.slice(html.indexOf('atlas-data'));
     expect(body).not.toContain('</script>x'); // the injected close tag must be escaped

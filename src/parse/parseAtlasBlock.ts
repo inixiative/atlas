@@ -35,7 +35,9 @@ const OPENS_ATLAS = /(^|\n)\s*\*?\s*@atlas\b/;
 
 // Locate the first block comment that opens with `@atlas`, returning its text
 // and character span so the patcher can splice a regenerated block in place.
-export const locateAtlasBlock = (source: string): { start: number; end: number; text: string } | null => {
+export const locateAtlasBlock = (
+  source: string,
+): { start: number; end: number; text: string } | null => {
   BLOCK_COMMENT.lastIndex = 0;
   for (let m = BLOCK_COMMENT.exec(source); m !== null; m = BLOCK_COMMENT.exec(source)) {
     if (OPENS_ATLAS.test(m[0])) {
@@ -89,7 +91,13 @@ export const parseAtlasBlock = (source: string): AtlasAnnotation | null => {
   // from curated-empty (`@uses none` / a bare `@uses`).
   const uses = dedupe(usesValues);
   const usesState: UsesState =
-    uses.length > 0 ? (usesProposed ? 'proposed' : 'values') : usesNone || usesSeen ? 'none' : 'absent';
+    uses.length > 0
+      ? usesProposed
+        ? 'proposed'
+        : 'values'
+      : usesNone || usesSeen
+        ? 'none'
+        : 'absent';
   if (usesSeen) axes.uses = uses;
 
   return {

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { resolve } from 'node:path';
 import { analyze } from '../src/analyze.ts';
-import { buildCoverageReport, buildConceptGraph } from '../src/commands/report.ts';
+import { buildConceptGraph, buildCoverageReport } from '../src/commands/report.ts';
 
 const MINI = resolve(import.meta.dir, 'fixtures/mini');
 
@@ -29,7 +29,14 @@ describe('buildCoverageReport', () => {
   test('reports filesInMultipleConcepts so category sums exceeding the total are explained', async () => {
     const report = buildCoverageReport({
       root: '/x',
-      config: { kinds: [], concepts: { 'feature:a': {}, 'feature:b': {} }, stamp: [], ignore: [], include: [], references: {} },
+      config: {
+        kinds: [],
+        concepts: { 'feature:a': {}, 'feature:b': {} },
+        stamp: [],
+        ignore: [],
+        include: [],
+        references: {},
+      },
       files: [
         {
           path: 'x.ts',

@@ -53,14 +53,21 @@ export const readBaseline = async (path: string): Promise<number | null> => {
   try {
     data = (await file.json()) as { unannotated?: number };
   } catch {
-    throw new Error(`baseline at ${path} is not valid JSON — re-run: atlas coverage --update-baseline`);
+    throw new Error(
+      `baseline at ${path} is not valid JSON — re-run: atlas coverage --update-baseline`,
+    );
   }
   return typeof data.unannotated === 'number' ? data.unannotated : null;
 };
 
 export const coverage = (a: Analysis): Coverage => {
   const unannotated: string[] = [];
-  const uses = { uncurated: [] as string[], curatedEmpty: [] as string[], proposed: [] as string[], curated: [] as string[] };
+  const uses = {
+    uncurated: [] as string[],
+    curatedEmpty: [] as string[],
+    proposed: [] as string[],
+    curated: [] as string[],
+  };
   const unresolved: Coverage['unresolved'] = [];
 
   for (const { path, annotation } of a.files) {
@@ -82,5 +89,11 @@ export const coverage = (a: Analysis): Coverage => {
     }
   }
 
-  return { total: a.files.length, annotated: a.files.length - unannotated.length, unannotated, uses, unresolved };
+  return {
+    total: a.files.length,
+    annotated: a.files.length - unannotated.length,
+    unannotated,
+    uses,
+    unresolved,
+  };
 };

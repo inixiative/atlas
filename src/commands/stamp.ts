@@ -55,7 +55,9 @@ export const runStamp = async (
   opts: { mode: StampMode; target?: string; write: boolean },
 ): Promise<StampResult> => {
   const config = await loadConfig(root);
-  const paths = (await walkFiles(root, config.include, config.ignore)).filter((p) => inScope(p, opts.target));
+  const paths = (await walkFiles(root, config.include, config.ignore)).filter((p) =>
+    inScope(p, opts.target),
+  );
   const files = await mapLimit(paths, IO_CONCURRENCY, async (path) => ({
     path,
     source: await Bun.file(resolve(root, path)).text(),
@@ -69,6 +71,7 @@ export const runStamp = async (
     }
   }
 
-  if (opts.write) await mapLimit(changes, IO_CONCURRENCY, (c) => Bun.write(resolve(root, c.path), c.after));
+  if (opts.write)
+    await mapLimit(changes, IO_CONCURRENCY, (c) => Bun.write(resolve(root, c.path), c.after));
   return { changes, unresolved };
 };

@@ -23,7 +23,9 @@ describe('analyze', () => {
     const byPath = Object.fromEntries(a.files.map((f) => [f.path, f]));
     expect(a.files.length).toBe(5);
     expect(byPath['src/lib/legacy.ts']?.annotation).toBeNull();
-    expect(byPath['src/modules/billing/controllers/createInvoice.ts']?.annotation?.kind).toEqual(['controller']);
+    expect(byPath['src/modules/billing/controllers/createInvoice.ts']?.annotation?.kind).toEqual([
+      'controller',
+    ]);
   });
 });
 
@@ -61,8 +63,17 @@ describe('checkVocab', () => {
     expect(
       checkVocab({
         root: '/x',
-        config: { kinds: ['controller'], concepts: { 'feature:billing': {} }, stamp: [], ignore: [], include: [], references: {} },
-        files: [{ path: 'a.ts', annotation: ann({ kind: ['controller'], partOf: ['feature:billing'] }) }],
+        config: {
+          kinds: ['controller'],
+          concepts: { 'feature:billing': {} },
+          stamp: [],
+          ignore: [],
+          include: [],
+          references: {},
+        },
+        files: [
+          { path: 'a.ts', annotation: ann({ kind: ['controller'], partOf: ['feature:billing'] }) },
+        ],
       }),
     ).toEqual([]);
   });
@@ -97,8 +108,12 @@ describe('runCheck (against the fixture)', () => {
   test('reports the missing block and the dangling doc reference, but no vocab errors', async () => {
     const result = await runCheck(await analyze(MINI));
     expect(result.ok).toBe(false);
-    expect(result.problems.some((p) => p.kind === 'presence' && p.file === 'src/lib/legacy.ts')).toBe(true);
-    expect(result.problems.some((p) => p.kind === 'reference' && /EMAIL\.md/.test(p.message))).toBe(true);
+    expect(
+      result.problems.some((p) => p.kind === 'presence' && p.file === 'src/lib/legacy.ts'),
+    ).toBe(true);
+    expect(result.problems.some((p) => p.kind === 'reference' && /EMAIL\.md/.test(p.message))).toBe(
+      true,
+    );
     expect(result.problems.some((p) => p.kind === 'vocab')).toBe(false);
   });
 });

@@ -18,4 +18,10 @@ export const conceptClass = (key: string): string | null => {
 
 // The set of concept classes present in a registry (sorted, unique).
 export const conceptClasses = (registry: ConceptRegistry): string[] =>
-  [...new Set(Object.keys(registry).map(conceptClass).filter((c): c is string => c !== null))].sort();
+  [
+    ...new Set(
+      Object.keys(registry)
+        .map(conceptClass)
+        .filter((c): c is string => c !== null),
+    ),
+  ].sort();

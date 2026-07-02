@@ -1,0 +1,3 @@
+{
+  "extends": ["@inixiative/config/biome/base.json"]
+}
