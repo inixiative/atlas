@@ -23,7 +23,7 @@
     "static-analysis"
   ],
   "bin": {
-    "atlas": "./bin/atlas.ts"
+    "atlas": "bin/atlas.ts"
   },
   "exports": {
     ".": "./src/index.ts",
