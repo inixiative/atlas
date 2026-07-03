@@ -59,7 +59,7 @@
     "lefthook": "2.1.9"
   },
   "dependencies": {
-    "@inixiative/json-rules": "^2.12.1"
+    "@inixiative/json-rules": "^2.13.0"
   },
   "packageManager": "bun@1.3.14"
 }
