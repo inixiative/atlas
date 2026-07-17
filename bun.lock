@@ -5,11 +5,11 @@
     "": {
       "name": "@inixiative/atlas",
       "dependencies": {
-        "@inixiative/json-rules": "^2.18.0",
+        "@inixiative/json-rules": "^2.18.1",
       },
       "devDependencies": {
         "@biomejs/biome": "2.5.2",
-        "@inixiative/config": "^0.5.9",
+        "@inixiative/config": "^0.5.10",
         "@types/bun": "1.3.14",
         "lefthook": "2.1.9",
         "typescript": "6.0.3",
@@ -35,9 +35,9 @@
 
     "@biomejs/cli-win32-x64": ["@biomejs/cli-win32-x64@2.5.2", "", { "os": "win32", "cpu": "x64" }, "sha512-4InchVpdVmdkkkgjQqKpgvyu+VPnoF/7RPSw5YATgEVpt2j72wcCAeV5TwaE9ZGJUZWZn7v2CwSAj6CrMJEx8A=="],
 
-    "@inixiative/config": ["@inixiative/config@0.5.9", "", { "peerDependencies": { "@biomejs/biome": ">=2.5.0", "tsup": ">=8.0.0", "typescript": ">=5.9.0" }, "optionalPeers": ["@biomejs/biome", "tsup", "typescript"], "bin": { "inixiative-config": "dist/cli.js" } }, "sha512-2EyvXxO+AdZ9NnCq3mcQlYlGKTX0IaKg6bB+J2LOEYhQ0vjuGIgYR1Cgj0bO5PyIA9gKYQ4RaEFlrvgYXSDBoQ=="],
+    "@inixiative/config": ["@inixiative/config@0.5.10", "", { "peerDependencies": { "@biomejs/biome": ">=2.5.0", "tsup": ">=8.0.0", "typescript": ">=5.9.0" }, "optionalPeers": ["@biomejs/biome", "tsup", "typescript"], "bin": { "inixiative-config": "dist/cli.js" } }, "sha512-aRF2+ngPzjvcCZB2lKqgfB/iFMVSorOgTmEMp0Dx5Q0GRZURSmeWwdjRsuJMfozA8mN+0rtNlk3+uz4J4feFMQ=="],
 
-    "@inixiative/json-rules": ["@inixiative/json-rules@2.18.0", "", { "dependencies": { "dayjs": "^1.11.13", "fastest-levenshtein": "^1.0.16" }, "peerDependencies": { "typescript": "^5.0.0" }, "optionalPeers": ["typescript"] }, "sha512-aqi6HeYQLRAvYZnfPniFavcXMBuRoEnTjy0L4w45T67d7z6RbM1CvCBiVUu8viwaqjVaoPb6TKYl0Cq8SF2hpg=="],
+    "@inixiative/json-rules": ["@inixiative/json-rules@2.18.1", "", { "dependencies": { "dayjs": "^1.11.13", "fastest-levenshtein": "^1.0.16" }, "peerDependencies": { "typescript": "^5.0.0" }, "optionalPeers": ["typescript"] }, "sha512-GXtmj0ThK6Nty3hxKOmHfQGAAQSdmV1LevELbLHjJ8NqG4bUvQsROgti+ZJpD+/4nKWd46CvUn7Ibe+zMK81mw=="],
 
     "@types/bun": ["@types/bun@1.3.14", "", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
 
