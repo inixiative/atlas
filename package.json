@@ -1,6 +1,6 @@
 {
   "name": "@inixiative/atlas",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "The map of the codebase — @atlas code annotations + a seam registry + a drift-proof MAP.md. A map that can only assert what is mechanically true.",
   "type": "module",
   "license": "MIT",
@@ -43,7 +43,7 @@
     "atlas": "bun run ./bin/atlas.ts",
     "prepublishOnly": "bun run check && bun run test",
     "lint": "biome check .",
-    "prepare": "lefthook install"
+    "prepare": "if git rev-parse --git-dir >/dev/null 2>&1; then lefthook install; fi"
   },
   "engines": {
     "bun": ">=1.0.0"
