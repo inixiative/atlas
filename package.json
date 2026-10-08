@@ -53,7 +53,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.2",
-    "@inixiative/config": "^0.5.60",
+    "@inixiative/config": "^0.5.61",
     "@types/bun": "1.4.2",
     "lefthook": "2.1.9",
     "typescript": "6.0.3"
