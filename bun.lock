@@ -5,11 +5,11 @@
     "": {
       "name": "@inixiative/atlas",
       "dependencies": {
-        "@inixiative/json-rules": "^3.3.1",
+        "@inixiative/json-rules": "^3.4.0",
       },
       "devDependencies": {
         "@biomejs/biome": "2.5.2",
-        "@inixiative/config": "^0.5.58",
+        "@inixiative/config": "^0.5.60",
         "@types/bun": "1.4.2",
         "lefthook": "2.1.9",
         "typescript": "6.0.3",
@@ -35,9 +35,9 @@
 
     "@biomejs/cli-win32-x64": ["@biomejs/cli-win32-x64@2.5.2", "", { "os": "win32", "cpu": "x64" }, "sha512-4InchVpdVmdkkkgjQqKpgvyu+VPnoF/7RPSw5YATgEVpt2j72wcCAeV5TwaE9ZGJUZWZn7v2CwSAj6CrMJEx8A=="],
 
-    "@inixiative/config": ["@inixiative/config@0.5.58", "", { "peerDependencies": { "@biomejs/biome": ">=2.5.0", "tsup": ">=8.5.0", "typescript": ">=6.0.0" }, "optionalPeers": ["@biomejs/biome", "tsup", "typescript"], "bin": { "inixiative-config": "dist/cli.js" } }, "sha512-/QDWtVRxZVUkEiG1RViGOERBYA4AMJfa0N3IBi5PI2Lz6nhG88SaOnw29D1SrMvPgnD6JcdLmj431G99ja5DkA=="],
+    "@inixiative/config": ["@inixiative/config@0.5.60", "", { "peerDependencies": { "@biomejs/biome": ">=2.5.0", "tsup": ">=8.5.0", "typescript": ">=6.0.0" }, "optionalPeers": ["@biomejs/biome", "tsup", "typescript"], "bin": { "inixiative-config": "dist/cli.js" } }, "sha512-7ooPijmA/VVCNx7tJLE+SE12rbx0VSP06fyXZkyOvEXzlWwXnbiQfNxf1xfvTi5y6Uib703DPVKjfwZ1nxXIaA=="],
 
-    "@inixiative/json-rules": ["@inixiative/json-rules@3.3.1", "", { "dependencies": { "dayjs": "^1.11.13", "fastest-levenshtein": "^1.0.16", "re2js": "^2.8.6" }, "peerDependencies": { "@prisma/client": ">=6.0.0", "typescript": ">=6.0.0" }, "optionalPeers": ["@prisma/client", "typescript"] }, "sha512-mwMIlmugS7x9XhYqmpYqMxPRmvTwcupVFb4OfWkhcSEBHmjr+GDNF6xgXj+Mu1JR6INUcpcYQ1EVgjI4Hd4cuw=="],
+    "@inixiative/json-rules": ["@inixiative/json-rules@3.4.0", "", { "dependencies": { "dayjs": "^1.11.13", "fastest-levenshtein": "^1.0.16", "re2js": "^2.8.6" }, "peerDependencies": { "@prisma/client": ">=6.0.0", "typescript": ">=6.0.0" }, "optionalPeers": ["@prisma/client", "typescript"] }, "sha512-u1sft8+jvZOlBtC0dExTbEh4aoI70DGkJgp8afmTYmR+WIJos3rWstqhdPhr0G7IK2Djm3g62Fyc1W8Vz6RCfw=="],
 
     "@types/bun": ["@types/bun@1.4.2", "", { "dependencies": { "bun-types": "1.4.2" } }, "sha512-GimotNn7+ZV0uVArItBbriZsR1oNf0+WTzPkdcFrzShI7k2norL0uzEaJT8T33dWr7O/c9ZDuAFQrctKCi72oQ=="],
 
