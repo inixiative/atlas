@@ -18,7 +18,7 @@ Usage: atlas <command> [target] [flags]
 
 Commands:
   graph                 reverse indexes: concept → files, file → concepts, doc → concepts
-  check [target]        presence + vocab + reference existence (the CI command);
+  check [target]        presence + vocab + reference + thesaurus existence (the CI command);
                         a target scopes to a path and skips registry-wide reference checks
   coverage              unannotated files; @uses curation buckets; unresolved memberships
                         gate with --min <pct> and/or --ratchet (vs a committed baseline)

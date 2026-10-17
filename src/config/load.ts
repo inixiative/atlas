@@ -53,6 +53,13 @@ export const loadConfig = async (root: string): Promise<LoadedConfig> => {
     }
   }
 
+  // A value that isn't a list of ids would be read character by character downstream.
+  for (const [word, ids] of Object.entries(thesaurus)) {
+    if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string')) {
+      throw new Error(`.atlas/thesaurus.ts: '${word}' must map to a list of concept ids`);
+    }
+  }
+
   return {
     kinds,
     concepts,

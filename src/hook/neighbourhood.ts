@@ -108,25 +108,55 @@ const wordsOf = (text: string): string[] => {
       .replace(/\\[A-Za-z]/g, ' ')
       .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
       .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
-      .match(/[A-Za-z0-9]+/g) ?? []
+      .match(/[\p{L}\p{N}]+/gu) ?? []
   ).map((word) => word.toLowerCase());
   const meaningful = words.filter((word) => !FILLER.has(word));
   return meaningful.length > 0 ? meaningful : words;
 };
 
-const containsRun = (haystack: string[], needle: string[]): boolean =>
-  needle.length > 0 &&
-  haystack.some((_, start) => needle.every((word, i) => haystack[start + i] === word));
+// Does a run of consecutive pattern words spell the phrase? Compared joined, so the split
+// doesn't matter: `seedUser` spells "seed a user", `createGitHubClient` spells "github",
+// `github` spells "GitHub". Runs start and end on word boundaries, so `unlock` never spells "lock".
+const spells = (patternWords: string[], phrase: string): boolean => {
+  const target = wordsOf(phrase).join('');
+  if (target === '') return false;
+  return patternWords.some((_, start) => {
+    let joined = '';
+    for (let i = start; i < patternWords.length && joined.length < target.length; i++) {
+      joined += patternWords[i];
+      if (joined === target) return true;
+    }
+    return false;
+  });
+};
 
-// Does a grep pattern search for this thesaurus word or phrase? Either the phrase's words
-// appear, whole and in order, among the pattern's (`acquireLock` → "lock", `seedUser` →
-// "seed a user"), or the pattern, read as a regex, matches the whole phrase (`seed.*user`,
-// `factor(y|ies)`). The regex reading needs a literal run of 3+ letters, so `.*` matches nothing.
-const searchesFor = (pattern: string, patternWords: string[], phrase: string): boolean => {
-  if (containsRun(patternWords, wordsOf(phrase))) return true;
-  if (!/[A-Za-z]{3,}/.test(pattern.replace(/\\[A-Za-z]/g, ' '))) return false;
+// The pattern's alternatives, each read on its own: `seed|user` searches "seed" or "user",
+// never the phrase "seed a user".
+const segmentWords = (pattern: string): string[][] =>
+  pattern
+    .split(/[|()]/)
+    .map(wordsOf)
+    .filter((words) => words.length > 0);
+
+const MAX_REGEX_PATTERN = 200;
+
+// Does a grep pattern search for this thesaurus word or phrase? Either one alternative of
+// the pattern spells it (see `spells`), or the pattern, read as a regex, matches the whole
+// phrase (`seed.*user`, `factor(y|ies)`). The regex reading also needs one of the pattern's
+// literal runs of 3+ letters inside the phrase, so `.*` or `lock|.*` can't match everything,
+// and it is skipped for long patterns and nested quantifiers, which can backtrack for seconds.
+const searchesFor = (pattern: string, segments: string[][], phrase: string): boolean => {
+  if (segments.some((words) => spells(words, phrase))) return true;
+  const lowerPhrase = phrase.trim().toLowerCase();
+  // A quantifier after a run binds only its last letter (`fixtures?`), so that letter is optional.
+  const literals = [...pattern.replace(/\\[A-Za-z]/g, ' ').matchAll(/(\p{L}{3,})([?*{])?/gu)]
+    .map(([, run = '', quantifier]) => (quantifier ? run.slice(0, -1) : run))
+    .filter((literal) => literal.length >= 3);
+  if (!literals.some((literal) => lowerPhrase.includes(literal.toLowerCase()))) return false;
+  if (pattern.length > MAX_REGEX_PATTERN || /\)[+*{]/.test(pattern)) return false;
   try {
-    return new RegExp(`^(?:${pattern})$`, 'i').test(phrase.trim());
+    new RegExp(pattern); // on its own first: `a)|(b` must not escape the anchors below
+    return new RegExp(`^(?:${pattern})$`, 'i').test(lowerPhrase);
   } catch {
     return false; // ripgrep syntax JavaScript can't parse: the word reading still applied
   }
@@ -151,12 +181,12 @@ const conceptBlock = (graph: Graph, concept: string, label: string): string => {
 // identifier names (exactly, or as a prefix either way once both are long enough to mean
 // something), skipping any the thesaurus already showed.
 export const renderConceptMatches = (graph: Graph, pattern: string): string | undefined => {
-  const patternWords = wordsOf(pattern);
-  const viaThesaurus = new Map<string, string[]>();
+  const segments = segmentWords(pattern);
+  const viaThesaurus = new Map<string, Set<string>>();
   for (const [phrase, concepts] of Object.entries(graph.thesaurus)) {
-    if (phrase.trim() === '' || !searchesFor(pattern, patternWords, phrase)) continue;
+    if (phrase.trim() === '' || !searchesFor(pattern, segments, phrase)) continue;
     for (const concept of concepts)
-      viaThesaurus.set(concept, [...(viaThesaurus.get(concept) ?? []), phrase]);
+      viaThesaurus.set(concept, (viaThesaurus.get(concept) ?? new Set()).add(phrase));
   }
 
   const token = identifierToken(pattern);
@@ -180,7 +210,7 @@ export const renderConceptMatches = (graph: Graph, pattern: string): string | un
         conceptBlock(
           graph,
           concept,
-          ` (thesaurus ${(viaThesaurus.get(concept) ?? []).map((phrase) => `"${phrase}"`).join(', ')})`,
+          ` (thesaurus ${[...(viaThesaurus.get(concept) ?? [])].map((phrase) => `"${phrase}"`).join(', ')})`,
         ),
       ),
     ...byName.sort().map((concept) => conceptBlock(graph, concept, '')),

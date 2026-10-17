@@ -82,7 +82,7 @@ A complete, commented set you can copy into your repo's `.atlas/` is in
 
 ```bash
 atlas graph       # reverse indexes: concept → files, file → concepts, doc → concepts
-atlas check       # presence + vocab existence + reference existence  (the CI command)
+atlas check       # presence + vocab + reference + thesaurus existence  (the CI command)
 atlas coverage    # unannotated files; @uses curation buckets; unresolved memberships
 atlas generate    # write MAP.md from the annotated tree
 atlas report      # coverage gaps + concept graph → COVERAGE.md (Mermaid) and atlas.html (Cytoscape)
@@ -206,11 +206,14 @@ export const THESAURUS: Thesaurus = {
 ```
 
 Matching is case-insensitive and on whole words or phrases. An entry matches a grep pattern when
-its words appear in order among the pattern's words (camelCase and `snake_case` split, `a`/`an`/
-`the`/`to`/`of`/`for` ignored: `seedUser` and `seed_user` match "seed a user", `acquireLock`
-matches "lock", `unlock` does not), or when the pattern, read as a regex, matches the whole phrase
-(`seed.*user`, `factor(y|ies)`; a pattern with no literal run of three letters, like `.*`, matches
-nothing). Thesaurus hits are listed first, labelled so the agent knows a person made the mapping;
+one alternative of the pattern spells it in consecutive whole words (camelCase and `snake_case`
+split, `a`/`an`/`the`/`to`/`of`/`for` ignored: `seedUser` and `seed_user` match "seed a user",
+`acquireLock` matches "lock", `createGitHubClient` matches "github", `unlock` doesn't match "lock",
+and `seed|user` doesn't match "seed a user"), or when the pattern, read as a regex, matches the
+whole phrase (`seed.*user`, `factor(y|ies)`). The regex reading needs one of the pattern's own
+literal words of three or more letters inside the phrase, so `.*` and `lock|.*` don't list the
+whole thesaurus. There is no stemming: `locks` misses "lock", so give a plural its own entry when
+people search with it. Thesaurus hits are listed first, labelled so the agent knows a person made the mapping;
 then come the concept-name matches not already shown:
 
 ```

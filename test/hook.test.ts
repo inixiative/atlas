@@ -178,6 +178,47 @@ describe('renderConceptMatches — thesaurus', () => {
     expect(renderConceptMatches(g, '[a-z ]+')).toBeUndefined();
   });
 
+  test('a wildcard alternative does not list the whole thesaurus', async () => {
+    const g = graph(await analyze(FIXTURE));
+    expect(renderConceptMatches(g, 'nothing|.*')).toBeUndefined();
+    const text = renderConceptMatches(g, 'lock|.+') ?? '';
+    expect(text).toContain('primitive:routeTemplates (thesaurus "lock")');
+    expect(text).not.toContain('thesaurus "seed a user"');
+  });
+
+  test('alternatives are read apart: seed|user is not the phrase "seed a user"', async () => {
+    const g = graph(await analyze(FIXTURE));
+    expect(renderConceptMatches(g, 'seed|user')).toBeUndefined();
+    expect(renderConceptMatches(g, 'foo|seedUser')).toContain('thesaurus "seed a user"');
+  });
+
+  test('whole words, however the identifier splits them', async () => {
+    const g = graph(await analyze(FIXTURE));
+    const users = (word: string) => `feature:users (thesaurus "${word}") — 2 file(s)`;
+    expect(renderConceptMatches(g, 'acquireLock')).toContain('(thesaurus "lock")');
+    expect(renderConceptMatches(g, 'unlock')).toBeUndefined();
+    expect(renderConceptMatches(g, 'locks')).toBeUndefined();
+    for (const pattern of ['github', 'createGitHubClient', 'GITHUB_TOKEN'])
+      expect(renderConceptMatches(g, pattern)).toContain(users('GitHub'));
+    expect(renderConceptMatches(g, 'OAuthProvider')).toContain(users('oauth'));
+  });
+
+  test('a concept named twice in one entry is listed once', async () => {
+    const g = graph(await analyze(FIXTURE));
+    expect(renderConceptMatches(g, 'fixture')).toBe(
+      ['atlas concept(s) matching "fixture":', '', thesaurusBlock('fixture')].join('\n'),
+    );
+  });
+
+  test('patterns JavaScript cannot run as given fall back to the word reading', async () => {
+    const g = graph(await analyze(FIXTURE));
+    expect(renderConceptMatches(g, '(')).toBeUndefined();
+    expect(renderConceptMatches(g, 'seed)|(user')).toBeUndefined();
+    expect(renderConceptMatches(g, '(?i)lock')).toContain('(thesaurus "lock")');
+    // nested quantifiers skip the regex reading rather than risk backtracking
+    expect(renderConceptMatches(g, '(\\w+\\s?)+user')).toBeUndefined();
+  });
+
   test('thesaurus hits come first; a concept-name hit it already showed is not repeated', async () => {
     const g = graph(await analyze(FIXTURE));
     const text = renderConceptMatches(g, 'routeTemplates|fixture') ?? '';

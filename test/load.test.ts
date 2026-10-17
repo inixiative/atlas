@@ -52,6 +52,15 @@ describe('loadConfig — loud on misconfiguration', () => {
     });
   });
 
+  test('a thesaurus value that is not a list of concept ids throws', async () => {
+    await withTempAtlas(
+      { '.atlas/thesaurus.ts': "export const THESAURUS = { lock: 'mutex' };\n" },
+      async (dir) => {
+        expect(loadConfig(dir)).rejects.toThrow(/'lock' must map to a list/);
+      },
+    );
+  });
+
   test('thesaurus.ts is optional; when present its THESAURUS or default export loads', async () => {
     await withTempAtlas(
       { '.atlas/thesaurus.ts': "export default { lock: ['mutex'] };\n" },
