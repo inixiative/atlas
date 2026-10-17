@@ -218,20 +218,25 @@ Matching is case-insensitive and on whole words or phrases:
   compared joined: camelCase and `snake_case` split, `a`/`an`/`the`/`to`/`of`/`for` ignored.
   `seedUser` and `seed_user` match "seed a user", `acquireLock` matches "lock",
   `createGitHubClient` matches "github". `unlock`, `lockfile` and `seed|user` (two alternatives)
-  match nothing.
+  match nothing. Only an unescaped `|`, `(` or `)` separates alternatives.
 - **Conjugations.** Each phrase word also matches its simple English inflections: `-s`, `-es`,
-  `-ing`, `-ed`, `-er`; a final `e` dropped before `-ing`/`-ed`/`-er`; a consonant + `y` becoming
+  `-ing`, `-ed`, `-er`; a final `e` dropped before `-ing`/`-ed`/`-er`; a final consonant after a
+  single vowel doubled (`log` → `logging`, `logger`; `stop` → `stopped`); a consonant + `y` becoming
   `-ies`/`-ied`. So "lock" matches `locks`, `locking`, `locked`, `locker`; "serialize" matches
-  `serializing`, `serialized`; "factory" matches `factories`. It is a suffix rule, not a stemmer, and
-  stays whole-word: `unlocked`, `blocking` and `serializable` don't match. Write phrases in their
-  base form.
+  `serializing`, `serialized`; "factory" matches `factories`. A three-letter word keeps its `e`
+  before `-er`, so "use" matches `using` and `used` but not `user`. It is a suffix rule, not a
+  stemmer, and stays whole-word: `unlocked`, `blocking` and `serializable` don't match. Write
+  phrases in their base form.
 - **The pattern as a regex.** The pattern matches the whole phrase (`seed.*user`, `factor(y|ies)`),
-  provided one of its own literal words of three or more letters is in the phrase, so `.*` and
-  `lock|.*` don't list the whole thesaurus. Long patterns and nested quantifiers skip this reading.
+  provided one of its own literal words of three or more letters starts a word of the phrase, so
+  `.*` matches nothing and `lock|.*` reaches "lock the door" but not "unlock the door". This
+  reading follows regex semantics rather than whole words, and is skipped for patterns over 200
+  characters, nested quantifiers, more than four unbounded quantifiers, and syntax JavaScript can't
+  parse.
 
 Thesaurus hits are listed first, labelled with the phrase so the agent knows a person made the
-mapping, with a `read:` line pointing at the doc. Then come the concept-name matches not already
-shown:
+mapping, with a `read:` line pointing at the doc; past eight concepts the rest are counted, not
+listed. Then come the concept-name matches not already shown:
 
 ```
 atlas concept(s) matching "seeding.*users?":
@@ -244,8 +249,10 @@ primitive:testFactories (thesaurus "seed a user") — 3 file(s), 1 consumer(s) v
 ```
 
 `atlas check` flags an entry for a concept the registry doesn't have, an empty phrase list, an empty
-phrase, and a `doc` whose file doesn't resolve to a real file. Whether a phrase is apt is the
-curator's call.
+phrase (one with no letter or digit), and a `doc` whose file doesn't resolve to a real file; a
+scoped `atlas check <target>` skips the doc check like the other reference checks. `loadConfig`
+refuses an entry with any key besides `phrases` and `doc`, so a `docs:` typo can't silently fall
+back to the default doc. Whether a phrase is apt is the curator's call.
 
 **Keeping it up:** when a search misses and you later find the thing, add the words you searched
 with to that concept's phrases. Phrases come from how people describe the job, never from a test

@@ -14,6 +14,8 @@ export const REACH_KINDS: readonly string[] = ['factory', 'constructor'];
 const SIBLING_SAMPLE = 12;
 const MAX_CONCEPT_FILES = 20;
 const MIN_TOKEN = 4;
+const MAX_THESAURUS_CONCEPTS = 8;
+const MAX_QUOTED_PATTERN = 80;
 
 // The owning `.atlas/` is the one above the file, not the session cwd: the file may
 // live in a worktree while the session runs from the main checkout.
@@ -116,68 +118,108 @@ const wordsOf = (text: string): string[] => {
 
 // The conjugations a search may use for a word, by a small suffix rule (no stemmer): plural
 // `-s`/`-es`, `-ing`, `-ed`, `-er`; a final `e` drops before a vowel suffix (serialize →
-// serializing, serialized, serializer); a consonant + `y` becomes `-ies`/`-ied` (factory →
-// factories). Words under three letters are taken as written.
+// serializing, serialized, serializer); a final consonant after a single vowel doubles (log →
+// logging, logger; stop → stopped); a consonant + `y` becomes `-ies`/`-ied` (factory →
+// factories). Words under three letters are taken as written, and a 3-letter word keeps its
+// `e` before `-er`, so "use" reaches `using` and `used` but never `user`.
 const conjugations = (word: string): string[] => {
   if (word.length < 3) return [word];
   const forms = [word, `${word}s`, `${word}es`, `${word}ing`, `${word}ed`, `${word}er`];
+  const stem = word.slice(0, -1);
   if (word.endsWith('e'))
-    forms.push(...['ing', 'ed', 'er'].map((suffix) => word.slice(0, -1) + suffix));
-  if (/[^aeiou]y$/.test(word)) forms.push(`${word.slice(0, -1)}ies`, `${word.slice(0, -1)}ied`);
+    forms.push(`${stem}ing`, `${stem}ed`, ...(word.length >= 4 ? [`${stem}er`] : []));
+  if (/[^aeiou][aeiou][^aeiouwxy]$/.test(word))
+    forms.push(...['ing', 'ed', 'er'].map((suffix) => word + word.slice(-1) + suffix));
+  if (/[^aeiou]y$/.test(word)) forms.push(`${stem}ies`, `${stem}ied`);
   return forms;
 };
+
+// A phrase, prepared once per hook call: its words, each word's conjugations, and the longest
+// text a match could span (so a long pattern is only scanned that far from each start).
+type PreparedPhrase = { phrase: string; words: string[]; forms: string[][]; maxLength: number };
+
+const preparePhrase = (phrase: string): PreparedPhrase => {
+  const words = wordsOf(phrase);
+  const forms = words.map(conjugations);
+  const maxLength = forms.reduce((sum, list) => sum + Math.max(...list.map((f) => f.length)), 0);
+  return { phrase, words, forms, maxLength };
+};
+
+// One alternative of the pattern: its words joined, and where each word ends in that text.
+type Segment = { text: string; ends: number[] };
+
+// The pattern's alternatives, each read on its own: `seed|user` searches "seed" or "user",
+// never the phrase "seed a user". An escaped `\(`, `\)` or `\|` is a literal, not a boundary.
+const segmentsOf = (pattern: string): Segment[] =>
+  pattern
+    .replace(/\\[|()]/g, ' ')
+    .split(/[|()]/)
+    .map(wordsOf)
+    .filter((words) => words.length > 0)
+    .map((words) => {
+      let at = 0;
+      return { text: words.join(''), ends: words.map((word) => (at += word.length)) };
+    });
 
 // Does a run of consecutive pattern words spell the phrase, each phrase word in one of its
 // conjugations? Compared joined, so the split doesn't matter: `seedingUsers` spells "seed a
 // user", `createGitHubClient` spells "github", `github` spells "GitHub". The run starts and ends
 // on word boundaries, so `unlock` never spells "lock" and `lockfile` never does either.
-const spells = (patternWords: string[], phrase: string): boolean => {
-  const phraseWords = wordsOf(phrase);
-  if (phraseWords.length === 0) return false;
-  return patternWords.some((_, start) => {
-    const run = patternWords.slice(start);
-    const text = run.join('');
-    const ends = new Set(run.map((_, i) => run.slice(0, i + 1).join('').length));
-    const walk = (i: number, at: number): boolean =>
-      i === phraseWords.length
-        ? ends.has(at)
-        : conjugations(phraseWords[i] ?? '').some(
-            (form) => text.startsWith(form, at) && walk(i + 1, at + form.length),
-          );
-    return walk(0, 0);
-  });
+const spells = ({ text, ends }: Segment, { words, forms, maxLength }: PreparedPhrase): boolean => {
+  if (words.length === 0) return false;
+  const boundaries = new Set(ends);
+  const walk = (i: number, at: number, limit: number): boolean =>
+    i === forms.length
+      ? boundaries.has(at)
+      : (forms[i] ?? []).some(
+          (form) =>
+            at + form.length <= limit &&
+            text.startsWith(form, at) &&
+            walk(i + 1, at + form.length, limit),
+        );
+  return [0, ...ends.slice(0, -1)].some((start) => walk(0, start, start + maxLength));
 };
 
-// The pattern's alternatives, each read on its own: `seed|user` searches "seed" or "user",
-// never the phrase "seed a user".
-const segmentWords = (pattern: string): string[][] =>
-  pattern
-    .split(/[|()]/)
-    .map(wordsOf)
-    .filter((words) => words.length > 0);
-
 const MAX_REGEX_PATTERN = 200;
+const MAX_UNBOUNDED_QUANTIFIERS = 4;
 
-// Does a grep pattern search for this thesaurus word or phrase? Either one alternative of
-// the pattern spells it (see `spells`), or the pattern, read as a regex, matches the whole
-// phrase (`seed.*user`, `factor(y|ies)`). The regex reading also needs one of the pattern's
-// literal runs of 3+ letters inside the phrase, so `.*` or `lock|.*` can't match everything,
-// and it is skipped for long patterns and nested quantifiers, which can backtrack for seconds.
-const searchesFor = (pattern: string, segments: string[][], phrase: string): boolean => {
-  if (segments.some((words) => spells(words, phrase))) return true;
-  const lowerPhrase = phrase.trim().toLowerCase();
+// The pattern read as a regex over a whole phrase, compiled once per hook call, or not at all
+// for long patterns, nested or piled-up quantifiers (they backtrack for seconds in JavaScript),
+// and syntax JavaScript can't parse (the word reading still applies).
+type RegexReading = { regex: RegExp; literals: string[] } | undefined;
+
+const regexReadingOf = (pattern: string): RegexReading => {
+  if (pattern.length > MAX_REGEX_PATTERN || /\)[+*{]/.test(pattern)) return undefined;
+  if ((pattern.match(/[*+]|\{\d+,\}/g) ?? []).length > MAX_UNBOUNDED_QUANTIFIERS) return undefined;
   // A quantifier after a run binds only its last letter (`fixtures?`), so that letter is optional.
   const literals = [...pattern.replace(/\\[A-Za-z]/g, ' ').matchAll(/(\p{L}{3,})([?*{])?/gu)]
-    .map(([, run = '', quantifier]) => (quantifier ? run.slice(0, -1) : run))
+    .map(([, run = '', quantifier]) => (quantifier ? run.slice(0, -1) : run).toLowerCase())
     .filter((literal) => literal.length >= 3);
-  if (!literals.some((literal) => lowerPhrase.includes(literal.toLowerCase()))) return false;
-  if (pattern.length > MAX_REGEX_PATTERN || /\)[+*{]/.test(pattern)) return false;
+  if (literals.length === 0) return undefined;
   try {
     new RegExp(pattern); // on its own first: `a)|(b` must not escape the anchors below
-    return new RegExp(`^(?:${pattern})$`, 'i').test(lowerPhrase);
+    return { regex: new RegExp(`^(?:${pattern})$`, 'i'), literals };
   } catch {
-    return false; // ripgrep syntax JavaScript can't parse: the word reading still applied
+    return undefined;
   }
+};
+
+// Does a grep pattern search for this thesaurus phrase? Either one alternative of the pattern
+// spells it (see `spells`), or the pattern, read as a regex, matches the whole phrase
+// (`seed.*user`, `factor(y|ies)`). The regex reading also needs one of the pattern's own
+// literal words to start a word of the phrase, so `.*` matches nothing and `lock|.*` reaches
+// "lock" but not "unlock".
+const searchesFor = (
+  segments: Segment[],
+  reading: RegexReading,
+  phrase: PreparedPhrase,
+): boolean => {
+  if (segments.some((segment) => spells(segment, phrase))) return true;
+  if (!reading) return false;
+  const { regex, literals } = reading;
+  if (!literals.some((literal) => phrase.words.some((word) => word.startsWith(literal))))
+    return false;
+  return regex.test(phrase.phrase.trim());
 };
 
 const conceptBlock = (graph: Graph, concept: string, label: string): string => {
@@ -201,14 +243,13 @@ const conceptBlock = (graph: Graph, concept: string, label: string): string => {
 // whose name the pattern's identifier names (exactly, or as a prefix either way once both are
 // long enough to mean something), skipping any the thesaurus already showed.
 export const renderConceptMatches = (graph: Graph, pattern: string): string | undefined => {
-  const segments = segmentWords(pattern);
+  const segments = segmentsOf(pattern);
+  const reading = regexReadingOf(pattern);
   const viaThesaurus = new Map<string, string[]>();
   for (const [concept, { phrases }] of Object.entries(graph.thesaurus)) {
-    const hits = [
-      ...new Set(
-        phrases.filter((phrase) => phrase.trim() !== '' && searchesFor(pattern, segments, phrase)),
-      ),
-    ];
+    const hits = [...new Set(phrases)].filter((phrase) =>
+      searchesFor(segments, reading, preparePhrase(phrase)),
+    );
     if (hits.length > 0) viaThesaurus.set(concept, hits);
   }
 
@@ -226,18 +267,23 @@ export const renderConceptMatches = (graph: Graph, pattern: string): string | un
       })
     : [];
 
+  // A broad phrase on many concepts must not crowd out the rest of the answer.
+  const thesaurusHits = [...viaThesaurus.entries()].sort(([a], [b]) => a.localeCompare(b));
+  const shown = thesaurusHits.slice(0, MAX_THESAURUS_CONCEPTS);
+  const hidden = thesaurusHits.length - shown.length;
   const blocks = [
-    ...[...viaThesaurus.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([concept, hits]) =>
-        conceptBlock(
-          graph,
-          concept,
-          ` (thesaurus ${hits.map((phrase) => `"${phrase}"`).join(', ')})`,
-        ),
+    ...shown.map(([concept, hits]) =>
+      conceptBlock(
+        graph,
+        concept,
+        ` (thesaurus ${hits.map((phrase) => `"${phrase}"`).join(', ')})`,
       ),
+    ),
+    ...(hidden > 0 ? [`… ${hidden} more concept(s) via the thesaurus; narrow the pattern`] : []),
     ...byName.sort().map((concept) => conceptBlock(graph, concept, '')),
   ];
   if (blocks.length === 0) return undefined;
-  return `atlas concept(s) matching "${pattern}":\n\n${blocks.join('\n\n')}`;
+  const quoted =
+    pattern.length > MAX_QUOTED_PATTERN ? `${pattern.slice(0, MAX_QUOTED_PATTERN)}…` : pattern;
+  return `atlas concept(s) matching "${quoted}":\n\n${blocks.join('\n\n')}`;
 };

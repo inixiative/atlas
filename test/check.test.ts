@@ -84,20 +84,23 @@ describe('checkVocab', () => {
 
 describe('checkThesaurus', () => {
   const root = resolve(import.meta.dir, 'fixtures/hooks');
-  const withThesaurus = (thesaurus: Thesaurus) =>
-    checkThesaurus({
-      root,
-      config: {
-        kinds: [],
-        concepts: { 'primitive:testFactories': { docs: ['TESTING.md'] }, mutex: {} },
-        thesaurus,
-        stamp: [],
-        ignore: [],
-        include: [],
-        references: { docs: (v) => `docs/${v}` },
+  const withThesaurus = (thesaurus: Thesaurus, opts: { references?: boolean } = {}) =>
+    checkThesaurus(
+      {
+        root,
+        config: {
+          kinds: [],
+          concepts: { 'primitive:testFactories': { docs: ['TESTING.md'] }, mutex: {} },
+          thesaurus,
+          stamp: [],
+          ignore: [],
+          include: [],
+          references: { docs: (v) => `docs/${v}` },
+        },
+        files: [],
       },
-      files: [],
-    });
+      opts,
+    );
   const messages = async (thesaurus: Thesaurus) =>
     (await withThesaurus(thesaurus)).map((p) => p.message);
 
@@ -126,8 +129,19 @@ describe('checkThesaurus', () => {
 
   test('flags a doc that does not resolve to a file, ignoring the #section', async () => {
     expect(await messages({ mutex: { phrases: ['lock'], doc: 'LOCKS.md#mutex' } })).toEqual([
-      "thesaurus entry 'mutex': doc reference 'LOCKS.md' → docs/LOCKS.md does not exist",
+      "thesaurus entry 'mutex': doc 'LOCKS.md#mutex' → docs/LOCKS.md does not exist",
     ]);
+  });
+
+  test('a phrase with no letter or digit counts as empty', async () => {
+    expect(await messages({ mutex: { phrases: ['lock', '!!!'] } })).toEqual([
+      "thesaurus entry 'mutex' has an empty phrase",
+    ]);
+  });
+
+  test('a scoped run skips the doc check, like the other reference checks', async () => {
+    const thesaurus = { mutex: { phrases: ['lock'], doc: 'LOCKS.md' } };
+    expect(await withThesaurus(thesaurus, { references: false })).toEqual([]);
   });
 
   test('passes registered concepts with phrases and a real doc', async () => {

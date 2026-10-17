@@ -52,22 +52,21 @@ export const checkVocab = (a: Analysis): Problem[] => {
 };
 
 // Resolve one reference value and confirm the file exists. The resolver is consumer code — a
-// throw becomes a message, never an unhandled crash of the whole check.
+// throw is reported, never an unhandled crash of the whole check.
+type MissingReference = { rel: string } | { threw: string } | undefined;
+
 const missingReference = async (
   root: string,
-  field: string,
   resolver: ReferenceResolver,
   value: string,
-): Promise<string | undefined> => {
+): Promise<MissingReference> => {
   let rel: string;
   try {
     rel = resolver(value);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return `${field} resolver threw on '${value}': ${msg}`;
+    return { threw: err instanceof Error ? err.message : String(err) };
   }
-  if (await Bun.file(resolve(root, rel)).exists()) return undefined;
-  return `${field} reference '${value}' → ${rel} does not exist`;
+  return (await Bun.file(resolve(root, rel)).exists()) ? undefined : { rel };
 };
 
 // reference existence — a concept's doc paths resolve to real files.
@@ -76,9 +75,16 @@ export const checkReferences = async (a: Analysis): Promise<Problem[]> => {
   for (const [concept, entry] of Object.entries(a.config.concepts)) {
     for (const [field, resolver] of Object.entries(a.config.references)) {
       for (const value of entry[field] ?? []) {
-        const missing = await missingReference(a.root, field, resolver, value);
-        if (missing)
-          problems.push({ kind: 'reference', concept, message: `${concept}: ${missing}` });
+        const missing = await missingReference(a.root, resolver, value);
+        if (!missing) continue;
+        problems.push({
+          kind: 'reference',
+          concept,
+          message:
+            'threw' in missing
+              ? `${concept}: ${field} resolver threw on '${value}': ${missing.threw}`
+              : `${concept}: ${field} reference '${value}' → ${missing.rel} does not exist`,
+        });
       }
     }
   }
@@ -89,9 +95,13 @@ const THESAURUS_FILE = '.atlas/thesaurus.ts';
 
 // thesaurus existence — every entry is a registered concept with at least one non-blank
 // phrase, and its own `doc` (the file part, before any `#section`) resolves to a real file
-// through the same `references.docs` resolver. A defaulted doc is a `docs:` entry that
+// through the same `references.docs` resolver. The doc check is a reference check, so a
+// scoped run skips it like the others. A defaulted doc is a `docs:` entry that
 // checkReferences already covers. Whether a phrase is *apt* is the curator's call.
-export const checkThesaurus = async (a: Analysis): Promise<Problem[]> => {
+export const checkThesaurus = async (
+  a: Analysis,
+  opts: { references?: boolean } = {},
+): Promise<Problem[]> => {
   const concepts = new Set(Object.keys(a.config.concepts));
   const resolver = a.config.references.docs ?? ((value: string) => value);
   const problems: Problem[] = [];
@@ -101,24 +111,31 @@ export const checkThesaurus = async (a: Analysis): Promise<Problem[]> => {
     if (!concepts.has(concept))
       flag(concept, `thesaurus names '${concept}', which is not a registered concept`);
     if (phrases.length === 0) flag(concept, `thesaurus entry '${concept}' has no phrases`);
-    if (phrases.some((phrase) => phrase.trim() === ''))
+    // A phrase with no letter or digit can never match a search.
+    if (phrases.some((phrase) => !/[\p{L}\p{N}]/u.test(phrase)))
       flag(concept, `thesaurus entry '${concept}' has an empty phrase`);
-    if (doc !== undefined) {
-      const missing = await missingReference(a.root, 'doc', resolver, splitDoc(doc).file);
-      if (missing) flag(concept, `thesaurus entry '${concept}': ${missing}`);
+    if (doc !== undefined && opts.references !== false) {
+      const missing = await missingReference(a.root, resolver, splitDoc(doc).file);
+      if (missing)
+        flag(
+          concept,
+          'threw' in missing
+            ? `thesaurus entry '${concept}': docs resolver threw on doc '${doc}': ${missing.threw}`
+            : `thesaurus entry '${concept}': doc '${doc}' → ${missing.rel} does not exist`,
+        );
     }
   }
   return problems;
 };
 
 // Reference existence is a registry-wide concern, so it is skipped when a run is
-// scoped to a subset of files (incremental PR checks). The thesaurus check stays on:
-// it reads only `.atlas/` config, which is whole in every run.
+// scoped to a subset of files (incremental PR checks). The thesaurus shape checks stay on:
+// they read only `.atlas/` config, which is whole in every run.
 export const runCheck = async (
   a: Analysis,
   opts: { references?: boolean } = {},
 ): Promise<CheckResult> => {
-  const problems = [...checkPresence(a), ...checkVocab(a), ...(await checkThesaurus(a))];
+  const problems = [...checkPresence(a), ...checkVocab(a), ...(await checkThesaurus(a, opts))];
   if (opts.references !== false) problems.push(...(await checkReferences(a)));
   return { ok: problems.length === 0, problems };
 };

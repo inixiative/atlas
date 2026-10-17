@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { analyze } from '../src/analyze.ts';
 import { runCli } from '../src/cli.ts';
-import { graph } from '../src/commands/graph.ts';
+import { type Graph, graph } from '../src/commands/graph.ts';
 import { hookCommandFor } from '../src/commands/setup.ts';
 import { cachedGraph } from '../src/hook/cachedGraph.ts';
 import { runClaudeCodeHook } from '../src/hook/claudeCode.ts';
@@ -233,6 +233,22 @@ describe('renderConceptMatches — thesaurus', () => {
     expect(renderConceptMatches(g, 'oauth')).not.toContain('read:');
   });
 
+  test('a final consonant doubles; a 3-letter word keeps its e before -er', async () => {
+    const g = graph(await analyze(FIXTURE));
+    for (const pattern of ['logging', 'logger', 'logged', 'stopped', 'stopping'])
+      expect(renderConceptMatches(g, pattern)).toContain('primitive:routeTemplates (thesaurus');
+    for (const pattern of ['using', 'used', 'uses'])
+      expect(renderConceptMatches(g, pattern)).toContain('(thesaurus "use")');
+    for (const pattern of ['user', 'userId', 'createUser\\('])
+      expect(renderConceptMatches(g, pattern) ?? '').not.toContain('(thesaurus "use")');
+  });
+
+  test('an escaped paren or bar is a literal, not an alternative boundary', async () => {
+    const g = graph(await analyze(FIXTURE));
+    expect(renderConceptMatches(g, 'seed\\(user')).toContain('(thesaurus "seed a user")');
+    expect(renderConceptMatches(g, 'seed\\|user')).toContain('(thesaurus "seed a user")');
+  });
+
   test('a phrase listed twice in one entry is labelled once', async () => {
     const g = graph(await analyze(FIXTURE));
     expect(renderConceptMatches(g, 'fixture')).toBe(
@@ -260,6 +276,40 @@ describe('renderConceptMatches — thesaurus', () => {
     ).toEqual(
       ['primitive:testFactories', 'primitive:testFactories'], // the block's line + its query hint
     );
+  });
+
+  // A synthetic map: many concepts, many phrases, as a large repo's thesaurus would be.
+  const wideGraph = (concepts: number, phrases: string[]): Graph => ({
+    conceptToFiles: {},
+    usesConsumers: {},
+    fileToConcepts: {},
+    docToConcepts: {},
+    thesaurus: Object.fromEntries(
+      Array.from({ length: concepts }, (_, i) => [`primitive:c${i}`, { phrases }]),
+    ),
+  });
+
+  test('at most 8 thesaurus concepts render, then a count of the rest', () => {
+    const text = renderConceptMatches(wideGraph(10, ['lock']), 'lock') ?? '';
+    expect(text.match(/\(thesaurus "lock"\)/g)?.length).toBe(8);
+    expect(text).toContain('… 2 more concept(s) via the thesaurus; narrow the pattern');
+  });
+
+  test('the regex reading needs a pattern literal at the start of a phrase word', () => {
+    const g = wideGraph(1, ['unlock the door', 'lock the door']);
+    expect(renderConceptMatches(g, 'lock|.*')).toContain('(thesaurus "lock the door")');
+    expect(renderConceptMatches(g, 'lock|.*')).not.toContain('unlock');
+  });
+
+  test('a long pattern stays fast and its quote in the header is clipped', () => {
+    const g = wideGraph(300, ['seed a user', 'lock', 'make a controller', 'serialize', 'log']);
+    const pattern = Array.from({ length: 1000 }, (_, i) => `word${i}`).join(' ');
+    const started = performance.now();
+    expect(renderConceptMatches(g, pattern)).toBeUndefined();
+    expect(renderConceptMatches(g, `${'x'.repeat(100)}|lock`)).toContain(
+      `matching "${'x'.repeat(80)}…"`,
+    );
+    expect(performance.now() - started).toBeLessThan(1_000);
   });
 
   test('no thesaurus or concept match → the hook prints nothing', async () => {

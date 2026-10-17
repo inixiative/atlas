@@ -7,7 +7,9 @@ export const THESAURUS: Thesaurus = {
     doc: 'TESTING.md#factories',
   },
   // no doc: defaults to the concept's first `docs:` entry
-  'primitive:routeTemplates': { phrases: ['Make A Controller', 'lock', 'serialize'] },
+  'primitive:routeTemplates': {
+    phrases: ['Make A Controller', 'lock', 'serialize', 'log', 'stop'],
+  },
   // no doc anywhere: no read line
-  'feature:users': { phrases: ['GitHub', 'oauth', 'directory'] },
+  'feature:users': { phrases: ['GitHub', 'oauth', 'directory', 'use'] },
 };

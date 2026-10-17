@@ -55,8 +55,11 @@ export const loadConfig = async (root: string): Promise<LoadedConfig> => {
 
   // A malformed entry would be read character by character downstream; refuse it here.
   for (const [concept, entry] of Object.entries(thesaurus)) {
-    const { phrases, doc } = (entry ?? {}) as Partial<Record<string, unknown>>;
+    const { phrases, doc, ...rest } = (entry ?? {}) as Partial<Record<string, unknown>>;
     if (
+      typeof entry !== 'object' ||
+      entry === null ||
+      Object.keys(rest).length > 0 || // a `docs:` typo would silently fall back to the default doc
       !Array.isArray(phrases) ||
       phrases.some((phrase) => typeof phrase !== 'string') ||
       (doc !== undefined && typeof doc !== 'string')

@@ -57,6 +57,7 @@ describe('loadConfig — loud on misconfiguration', () => {
       "['lock']",
       "{ phrases: 'lock' }",
       "{ phrases: ['lock'], doc: 1 }",
+      "{ phrases: ['lock'], docs: 'LOCKS.md' }", // a typo for `doc`
       'null',
     ])
       await withTempAtlas(
