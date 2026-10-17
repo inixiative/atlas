@@ -52,20 +52,26 @@ describe('loadConfig — loud on misconfiguration', () => {
     });
   });
 
-  test('a thesaurus value that is not a list of concept ids throws', async () => {
-    await withTempAtlas(
-      { '.atlas/thesaurus.ts': "export const THESAURUS = { lock: 'mutex' };\n" },
-      async (dir) => {
-        expect(loadConfig(dir)).rejects.toThrow(/'lock' must map to a list/);
-      },
-    );
+  test('a thesaurus entry not shaped { phrases: string[]; doc?: string } throws', async () => {
+    for (const entry of [
+      "['lock']",
+      "{ phrases: 'lock' }",
+      "{ phrases: ['lock'], doc: 1 }",
+      'null',
+    ])
+      await withTempAtlas(
+        { '.atlas/thesaurus.ts': `export const THESAURUS = { mutex: ${entry} };\n` },
+        async (dir) => {
+          expect(loadConfig(dir)).rejects.toThrow(/'mutex' must be \{ phrases/);
+        },
+      );
   });
 
   test('thesaurus.ts is optional; when present its THESAURUS or default export loads', async () => {
     await withTempAtlas(
-      { '.atlas/thesaurus.ts': "export default { lock: ['mutex'] };\n" },
+      { '.atlas/thesaurus.ts': "export default { mutex: { phrases: ['lock'] } };\n" },
       async (dir) => {
-        expect((await loadConfig(dir)).thesaurus).toEqual({ lock: ['mutex'] });
+        expect((await loadConfig(dir)).thesaurus).toEqual({ mutex: { phrases: ['lock'] } });
       },
     );
     expect((await loadConfig(MINI)).thesaurus).toEqual({});

@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { analyze } from '../src/analyze.ts';
 import { checkThesaurus, checkVocab, runCheck } from '../src/commands/check.ts';
 import type { AtlasAnnotation } from '../src/parse/parseAtlasBlock.ts';
+import type { Thesaurus } from '../src/registry/types.ts';
 
 const MINI = resolve(import.meta.dir, 'fixtures/mini');
 
@@ -82,46 +83,60 @@ describe('checkVocab', () => {
 });
 
 describe('checkThesaurus', () => {
-  const withThesaurus = (thesaurus: Record<string, string[]>) =>
+  const root = resolve(import.meta.dir, 'fixtures/hooks');
+  const withThesaurus = (thesaurus: Thesaurus) =>
     checkThesaurus({
-      root: '/x',
+      root,
       config: {
         kinds: [],
-        concepts: { 'primitive:testFactories': {}, mutex: {} },
+        concepts: { 'primitive:testFactories': { docs: ['TESTING.md'] }, mutex: {} },
         thesaurus,
         stamp: [],
         ignore: [],
         include: [],
-        references: {},
+        references: { docs: (v) => `docs/${v}` },
       },
       files: [],
     });
+  const messages = async (thesaurus: Thesaurus) =>
+    (await withThesaurus(thesaurus)).map((p) => p.message);
 
-  test('flags an entry naming an unknown concept', () => {
-    const problems = withThesaurus({ lock: ['mutex', 'primitive:ghost'] });
-    expect(problems).toEqual([
+  test('flags an entry for an unknown concept', async () => {
+    expect(await withThesaurus({ 'primitive:ghost': { phrases: ['lock'] } })).toEqual([
       {
         kind: 'thesaurus',
         file: '.atlas/thesaurus.ts',
         concept: 'primitive:ghost',
-        message:
-          "thesaurus entry 'lock' names 'primitive:ghost', which is not a registered concept",
+        message: "thesaurus names 'primitive:ghost', which is not a registered concept",
       },
     ]);
   });
 
-  test('flags an empty word and an entry naming no concept', () => {
-    const messages = withThesaurus({ '  ': ['mutex'], lock: [] }).map((p) => p.message);
-    expect(messages).toEqual([
-      'thesaurus entry with an empty word',
-      "thesaurus entry 'lock' names no concept",
+  test('flags an empty phrase list and an empty phrase', async () => {
+    expect(
+      await messages({
+        mutex: { phrases: [] },
+        'primitive:testFactories': { phrases: ['seed', ' '] },
+      }),
+    ).toEqual([
+      "thesaurus entry 'mutex' has no phrases",
+      "thesaurus entry 'primitive:testFactories' has an empty phrase",
     ]);
   });
 
-  test('passes entries that name registered concepts', () => {
-    expect(withThesaurus({ 'seed a user': ['primitive:testFactories'], lock: ['mutex'] })).toEqual(
-      [],
-    );
+  test('flags a doc that does not resolve to a file, ignoring the #section', async () => {
+    expect(await messages({ mutex: { phrases: ['lock'], doc: 'LOCKS.md#mutex' } })).toEqual([
+      "thesaurus entry 'mutex': doc reference 'LOCKS.md' → docs/LOCKS.md does not exist",
+    ]);
+  });
+
+  test('passes registered concepts with phrases and a real doc', async () => {
+    expect(
+      await withThesaurus({
+        'primitive:testFactories': { phrases: ['seed a user'], doc: 'TESTING.md#factories' },
+        mutex: { phrases: ['lock'] },
+      }),
+    ).toEqual([]);
   });
 });
 

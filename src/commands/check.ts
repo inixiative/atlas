@@ -1,5 +1,7 @@
 import { resolve } from 'node:path';
 import type { Analysis } from '../analyze.ts';
+import type { ReferenceResolver } from '../config/defineConfig.ts';
+import { splitDoc } from './graph.ts';
 
 // Enforcement is EXISTENCE, not correctness: presence of a block, validity of
 // the vocabulary used, existence of referenced docs, and thesaurus entries that
@@ -49,33 +51,34 @@ export const checkVocab = (a: Analysis): Problem[] => {
   return problems;
 };
 
+// Resolve one reference value and confirm the file exists. The resolver is consumer code — a
+// throw becomes a message, never an unhandled crash of the whole check.
+const missingReference = async (
+  root: string,
+  field: string,
+  resolver: ReferenceResolver,
+  value: string,
+): Promise<string | undefined> => {
+  let rel: string;
+  try {
+    rel = resolver(value);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return `${field} resolver threw on '${value}': ${msg}`;
+  }
+  if (await Bun.file(resolve(root, rel)).exists()) return undefined;
+  return `${field} reference '${value}' → ${rel} does not exist`;
+};
+
 // reference existence — a concept's doc paths resolve to real files.
 export const checkReferences = async (a: Analysis): Promise<Problem[]> => {
   const problems: Problem[] = [];
   for (const [concept, entry] of Object.entries(a.config.concepts)) {
     for (const [field, resolver] of Object.entries(a.config.references)) {
       for (const value of entry[field] ?? []) {
-        // The resolver is consumer code — a throw becomes a structured problem,
-        // never an unhandled crash of the whole check.
-        let rel: string;
-        try {
-          rel = resolver(value);
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          problems.push({
-            kind: 'reference',
-            concept,
-            message: `${concept}: ${field} resolver threw on '${value}': ${msg}`,
-          });
-          continue;
-        }
-        if (!(await Bun.file(resolve(a.root, rel)).exists())) {
-          problems.push({
-            kind: 'reference',
-            concept,
-            message: `${concept}: ${field} reference '${value}' → ${rel} does not exist`,
-          });
-        }
+        const missing = await missingReference(a.root, field, resolver, value);
+        if (missing)
+          problems.push({ kind: 'reference', concept, message: `${concept}: ${missing}` });
       }
     }
   }
@@ -84,33 +87,26 @@ export const checkReferences = async (a: Analysis): Promise<Problem[]> => {
 
 const THESAURUS_FILE = '.atlas/thesaurus.ts';
 
-// thesaurus existence — every entry is a non-blank word or phrase naming at least one
-// concept, and every concept it names is registered. Whether the mapping is *apt* is
-// the curator's call, not atlas's.
-export const checkThesaurus = (a: Analysis): Problem[] => {
+// thesaurus existence — every entry is a registered concept with at least one non-blank
+// phrase, and its own `doc` (the file part, before any `#section`) resolves to a real file
+// through the same `references.docs` resolver. A defaulted doc is a `docs:` entry that
+// checkReferences already covers. Whether a phrase is *apt* is the curator's call.
+export const checkThesaurus = async (a: Analysis): Promise<Problem[]> => {
   const concepts = new Set(Object.keys(a.config.concepts));
+  const resolver = a.config.references.docs ?? ((value: string) => value);
   const problems: Problem[] = [];
-  for (const [word, ids] of Object.entries(a.config.thesaurus)) {
-    if (word.trim() === '')
-      problems.push({
-        kind: 'thesaurus',
-        file: THESAURUS_FILE,
-        message: 'thesaurus entry with an empty word',
-      });
-    if (ids.length === 0)
-      problems.push({
-        kind: 'thesaurus',
-        file: THESAURUS_FILE,
-        message: `thesaurus entry '${word}' names no concept`,
-      });
-    for (const id of ids)
-      if (!concepts.has(id))
-        problems.push({
-          kind: 'thesaurus',
-          file: THESAURUS_FILE,
-          concept: id,
-          message: `thesaurus entry '${word}' names '${id}', which is not a registered concept`,
-        });
+  const flag = (concept: string, message: string) =>
+    problems.push({ kind: 'thesaurus', file: THESAURUS_FILE, concept, message });
+  for (const [concept, { phrases, doc }] of Object.entries(a.config.thesaurus)) {
+    if (!concepts.has(concept))
+      flag(concept, `thesaurus names '${concept}', which is not a registered concept`);
+    if (phrases.length === 0) flag(concept, `thesaurus entry '${concept}' has no phrases`);
+    if (phrases.some((phrase) => phrase.trim() === ''))
+      flag(concept, `thesaurus entry '${concept}' has an empty phrase`);
+    if (doc !== undefined) {
+      const missing = await missingReference(a.root, 'doc', resolver, splitDoc(doc).file);
+      if (missing) flag(concept, `thesaurus entry '${concept}': ${missing}`);
+    }
   }
   return problems;
 };
@@ -122,7 +118,7 @@ export const runCheck = async (
   a: Analysis,
   opts: { references?: boolean } = {},
 ): Promise<CheckResult> => {
-  const problems = [...checkPresence(a), ...checkVocab(a), ...checkThesaurus(a)];
+  const problems = [...checkPresence(a), ...checkVocab(a), ...(await checkThesaurus(a))];
   if (opts.references !== false) problems.push(...(await checkReferences(a)));
   return { ok: problems.length === 0, problems };
 };

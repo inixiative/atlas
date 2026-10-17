@@ -53,10 +53,17 @@ export const loadConfig = async (root: string): Promise<LoadedConfig> => {
     }
   }
 
-  // A value that isn't a list of ids would be read character by character downstream.
-  for (const [word, ids] of Object.entries(thesaurus)) {
-    if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string')) {
-      throw new Error(`.atlas/thesaurus.ts: '${word}' must map to a list of concept ids`);
+  // A malformed entry would be read character by character downstream; refuse it here.
+  for (const [concept, entry] of Object.entries(thesaurus)) {
+    const { phrases, doc } = (entry ?? {}) as Partial<Record<string, unknown>>;
+    if (
+      !Array.isArray(phrases) ||
+      phrases.some((phrase) => typeof phrase !== 'string') ||
+      (doc !== undefined && typeof doc !== 'string')
+    ) {
+      throw new Error(
+        `.atlas/thesaurus.ts: '${concept}' must be { phrases: string[]; doc?: string }`,
+      );
     }
   }
 

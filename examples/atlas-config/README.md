@@ -9,7 +9,7 @@ owns the concept registry.**
   kinds.ts    # @kind vocab — atlas's defaults, extended with any roles you add
   concepts.ts    # the concept registry — repo-OWNED, structure only (the one you'll edit most)
   config.ts   # stamp rules (path → tags), ignore globs, and reference resolvers
-  thesaurus.ts   # optional: the words people search with → concept ids, for `atlas hook grep`
+  thesaurus.ts   # optional: per concept, the phrases people search with + its doc, for `atlas hook grep`
 ```
 
 The key idea: atlas hardcodes **no** concept classes (`feature`/`primitive`/…) and **no** constituent
@@ -22,7 +22,7 @@ concept that exists, that a `@kind` is in your vocab, and that referenced docs r
 | [`concepts.ts`](./concepts.ts) | constantly | add a concept when you add a feature/primitive; list its constituent folders so `@partOf` auto-fills |
 | [`config.ts`](./config.ts) | rarely | structural globs → `@kind`; capture globs → `@partOf` via membership |
 | [`kinds.ts`](./kinds.ts) | rarely | only when a role the defaults don't cover shows up |
-| [`thesaurus.ts`](./thesaurus.ts) | when a search misses | add the words you searched with once you find the concept |
+| [`thesaurus.ts`](./thesaurus.ts) | when a search misses | add the words you searched with to the concept you found |
 
 After copying, `bunx atlas stamp --write` fills `@kind`/`@partOf` from the rules, `bunx atlas check`
 gates it, and `bunx atlas generate` writes `MAP.md`.

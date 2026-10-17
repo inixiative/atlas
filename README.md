@@ -45,7 +45,7 @@ repo **owns** its concept registry.
   config.ts     // stamp rules (path → tags) + ignore + reference resolvers
   kinds.ts      // @kind vocab — extends atlas's defaults
   concepts.ts   // the concept registry — repo-OWNED, structure only
-  thesaurus.ts  // optional: the words people search with → concept ids (see Thesaurus)
+  thesaurus.ts  // optional: per concept, the phrases people search with + its doc (see Thesaurus)
 ```
 
 ```ts
@@ -191,46 +191,65 @@ How they behave:
 
 A grep for the job ("seed a user", "lock", "factory") names no concept, so the grep hook used to
 say nothing at exactly the moment an agent was looking for something that already exists. The
-thesaurus is a plain map that sits beside the registry and makes those searches land: the words
-and phrases people search with, each mapped to the concept ids they mean.
+thesaurus sits beside the registry and makes those searches land. Like a book's thesaurus it is
+keyed by the thing, not the word: each concept lists the phrases people search with when they mean
+it, and where its doc is, so a hit also says where to read.
 
 ```ts
-// .atlas/thesaurus.ts — optional. Keys are words or phrases; values are concept ids from concepts.ts.
+// .atlas/thesaurus.ts — optional. Keyed by concept id from concepts.ts.
 import type { Thesaurus } from '@inixiative/atlas';
 
 export const THESAURUS: Thesaurus = {
-  'seed a user': ['primitive:testFactories'],
-  factory: ['primitive:testFactories'],
-  lock: ['primitive:mutex'],
+  'primitive:testFactories': {
+    phrases: ['seed a user', 'factory', 'fixture'],
+    doc: 'TESTING.md#factories', // optional: a `docs:` value + optional #section
+  },
+  'primitive:mutex': { phrases: ['lock', 'serialize'] }, // doc defaults to the concept's first `docs:`
 };
 ```
 
-Matching is case-insensitive and on whole words or phrases. An entry matches a grep pattern when
-one alternative of the pattern spells it in consecutive whole words (camelCase and `snake_case`
-split, `a`/`an`/`the`/`to`/`of`/`for` ignored: `seedUser` and `seed_user` match "seed a user",
-`acquireLock` matches "lock", `createGitHubClient` matches "github", `unlock` doesn't match "lock",
-and `seed|user` doesn't match "seed a user"), or when the pattern, read as a regex, matches the
-whole phrase (`seed.*user`, `factor(y|ies)`). The regex reading needs one of the pattern's own
-literal words of three or more letters inside the phrase, so `.*` and `lock|.*` don't list the
-whole thesaurus. There is no stemming: `locks` misses "lock", so give a plural its own entry when
-people search with it. Thesaurus hits are listed first, labelled so the agent knows a person made the mapping;
-then come the concept-name matches not already shown:
+`doc` takes the same value a `docs:` entry in `concepts.ts` does and goes through the same
+`references.docs` resolver (as written when there is none); a `#section` is kept on the end. Leave
+it out and the concept's first `docs:` entry is used, so a doc is never written twice.
+
+Matching is case-insensitive and on whole words or phrases:
+
+- **Words, in order.** One alternative of the pattern spells the phrase in consecutive whole words,
+  compared joined: camelCase and `snake_case` split, `a`/`an`/`the`/`to`/`of`/`for` ignored.
+  `seedUser` and `seed_user` match "seed a user", `acquireLock` matches "lock",
+  `createGitHubClient` matches "github". `unlock`, `lockfile` and `seed|user` (two alternatives)
+  match nothing.
+- **Conjugations.** Each phrase word also matches its simple English inflections: `-s`, `-es`,
+  `-ing`, `-ed`, `-er`; a final `e` dropped before `-ing`/`-ed`/`-er`; a consonant + `y` becoming
+  `-ies`/`-ied`. So "lock" matches `locks`, `locking`, `locked`, `locker`; "serialize" matches
+  `serializing`, `serialized`; "factory" matches `factories`. It is a suffix rule, not a stemmer, and
+  stays whole-word: `unlocked`, `blocking` and `serializable` don't match. Write phrases in their
+  base form.
+- **The pattern as a regex.** The pattern matches the whole phrase (`seed.*user`, `factor(y|ies)`),
+  provided one of its own literal words of three or more letters is in the phrase, so `.*` and
+  `lock|.*` don't list the whole thesaurus. Long patterns and nested quantifiers skip this reading.
+
+Thesaurus hits are listed first, labelled with the phrase so the agent knows a person made the
+mapping, with a `read:` line pointing at the doc. Then come the concept-name matches not already
+shown:
 
 ```
-atlas concept(s) matching "seed.*user":
+atlas concept(s) matching "seeding.*users?":
 
 primitive:testFactories (thesaurus "seed a user") — 3 file(s), 1 consumer(s) via @uses; `bunx atlas query --partOf primitive:testFactories` lists all
+  read: docs/claude/TESTING.md#factories
   src/test/factories/buildFactory.ts
   src/test/factories/organizationFactory.ts
   src/test/factories/userFactory.ts
 ```
 
-`atlas check` flags an entry with an empty word, one that names no concept, and one that names a
-concept the registry doesn't have. Whether a mapping is apt is the curator's call.
+`atlas check` flags an entry for a concept the registry doesn't have, an empty phrase list, an empty
+phrase, and a `doc` whose file doesn't resolve to a real file. Whether a phrase is apt is the
+curator's call.
 
 **Keeping it up:** when a search misses and you later find the thing, add the words you searched
-with, mapped to the concept you found. Entries come from how people describe the job, never from a
-test case's expected answer: a thesaurus tuned to its tests only teaches the tests.
+with to that concept's phrases. Phrases come from how people describe the job, never from a test
+case's expected answer: a thesaurus tuned to its tests only teaches the tests.
 
 ## Visualize
 

@@ -9,12 +9,37 @@ export type Graph = {
   usesConsumers: Record<string, string[]>; // via @uses (dependency)
   fileToConcepts: Record<string, { kind: string[]; partOf: string[]; uses: string[] }>;
   docToConcepts: Record<string, string[]>;
-  thesaurus: Record<string, string[]>; // the repo's .atlas/thesaurus.ts, for the grep hook
+  thesaurus: Record<string, { phrases: string[]; doc?: string }>; // doc resolved to a repo path
 };
 
 const push = (rec: Record<string, string[]>, key: string, val: string): void => {
   rec[key] ??= [];
   rec[key].push(val);
+};
+
+// Split `FILE.md#section` so only the file goes through the `references.docs` resolver.
+export const splitDoc = (doc: string): { file: string; section?: string } => {
+  const hash = doc.indexOf('#');
+  return hash < 0 ? { file: doc } : { file: doc.slice(0, hash), section: doc.slice(hash + 1) };
+};
+
+// The doc a thesaurus entry points at, as a repo path: its own `doc`, else the concept's first
+// `docs:` entry, through the same resolver `atlas check` uses (identity when none is set).
+const resolvedThesaurus = (a: Analysis): Graph['thesaurus'] => {
+  const resolver = a.config.references.docs ?? ((value: string) => value);
+  return Object.fromEntries(
+    Object.entries(a.config.thesaurus).map(([concept, entry]) => {
+      const doc = entry.doc ?? a.config.concepts[concept]?.docs?.[0];
+      if (doc === undefined) return [concept, { phrases: entry.phrases }];
+      const { file, section } = splitDoc(doc);
+      try {
+        const path = resolver(file);
+        return [concept, { phrases: entry.phrases, doc: section ? `${path}#${section}` : path }];
+      } catch {
+        return [concept, { phrases: entry.phrases }]; // `atlas check` reports the throw
+      }
+    }),
+  );
 };
 
 export const graph = (a: Analysis): Graph => {
@@ -40,6 +65,6 @@ export const graph = (a: Analysis): Graph => {
     usesConsumers,
     fileToConcepts,
     docToConcepts: invert(a.config.concepts, 'docs'),
-    thesaurus: a.config.thesaurus,
+    thesaurus: resolvedThesaurus(a),
   };
 };

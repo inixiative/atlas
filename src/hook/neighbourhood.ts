@@ -114,19 +114,37 @@ const wordsOf = (text: string): string[] => {
   return meaningful.length > 0 ? meaningful : words;
 };
 
-// Does a run of consecutive pattern words spell the phrase? Compared joined, so the split
-// doesn't matter: `seedUser` spells "seed a user", `createGitHubClient` spells "github",
-// `github` spells "GitHub". Runs start and end on word boundaries, so `unlock` never spells "lock".
+// The conjugations a search may use for a word, by a small suffix rule (no stemmer): plural
+// `-s`/`-es`, `-ing`, `-ed`, `-er`; a final `e` drops before a vowel suffix (serialize →
+// serializing, serialized, serializer); a consonant + `y` becomes `-ies`/`-ied` (factory →
+// factories). Words under three letters are taken as written.
+const conjugations = (word: string): string[] => {
+  if (word.length < 3) return [word];
+  const forms = [word, `${word}s`, `${word}es`, `${word}ing`, `${word}ed`, `${word}er`];
+  if (word.endsWith('e'))
+    forms.push(...['ing', 'ed', 'er'].map((suffix) => word.slice(0, -1) + suffix));
+  if (/[^aeiou]y$/.test(word)) forms.push(`${word.slice(0, -1)}ies`, `${word.slice(0, -1)}ied`);
+  return forms;
+};
+
+// Does a run of consecutive pattern words spell the phrase, each phrase word in one of its
+// conjugations? Compared joined, so the split doesn't matter: `seedingUsers` spells "seed a
+// user", `createGitHubClient` spells "github", `github` spells "GitHub". The run starts and ends
+// on word boundaries, so `unlock` never spells "lock" and `lockfile` never does either.
 const spells = (patternWords: string[], phrase: string): boolean => {
-  const target = wordsOf(phrase).join('');
-  if (target === '') return false;
+  const phraseWords = wordsOf(phrase);
+  if (phraseWords.length === 0) return false;
   return patternWords.some((_, start) => {
-    let joined = '';
-    for (let i = start; i < patternWords.length && joined.length < target.length; i++) {
-      joined += patternWords[i];
-      if (joined === target) return true;
-    }
-    return false;
+    const run = patternWords.slice(start);
+    const text = run.join('');
+    const ends = new Set(run.map((_, i) => run.slice(0, i + 1).join('').length));
+    const walk = (i: number, at: number): boolean =>
+      i === phraseWords.length
+        ? ends.has(at)
+        : conjugations(phraseWords[i] ?? '').some(
+            (form) => text.startsWith(form, at) && walk(i + 1, at + form.length),
+          );
+    return walk(0, 0);
   });
 };
 
@@ -168,25 +186,30 @@ const conceptBlock = (graph: Graph, concept: string, label: string): string => {
   const more =
     files.length > MAX_CONCEPT_FILES ? [`  … ${files.length - MAX_CONCEPT_FILES} more`] : [];
   const consumers = graph.usesConsumers[concept]?.length ?? 0;
+  const doc = graph.thesaurus[concept]?.doc;
   return [
     `${concept}${label} — ${files.length} file(s)${consumers > 0 ? `, ${consumers} consumer(s) via @uses` : ''}; \`bunx atlas query --partOf ${concept}\` lists all`,
+    ...(doc ? [`  read: ${doc}`] : []),
     ...sample,
     ...more,
   ].join('\n');
 };
 
-// The grep-side lookup. First the thesaurus (`.atlas/thesaurus.ts`): words and phrases people
-// search with, mapped by hand to the concepts they mean; a hit is labelled with the word so
-// the agent knows a person made that mapping. Then concepts whose name the pattern's
-// identifier names (exactly, or as a prefix either way once both are long enough to mean
-// something), skipping any the thesaurus already showed.
+// The grep-side lookup. First the thesaurus (`.atlas/thesaurus.ts`): each concept's phrases,
+// the words people search with when they mean it; a hit is labelled with the phrase so the
+// agent knows a person made that mapping, and points at the concept's doc. Then concepts
+// whose name the pattern's identifier names (exactly, or as a prefix either way once both are
+// long enough to mean something), skipping any the thesaurus already showed.
 export const renderConceptMatches = (graph: Graph, pattern: string): string | undefined => {
   const segments = segmentWords(pattern);
-  const viaThesaurus = new Map<string, Set<string>>();
-  for (const [phrase, concepts] of Object.entries(graph.thesaurus)) {
-    if (phrase.trim() === '' || !searchesFor(pattern, segments, phrase)) continue;
-    for (const concept of concepts)
-      viaThesaurus.set(concept, (viaThesaurus.get(concept) ?? new Set()).add(phrase));
+  const viaThesaurus = new Map<string, string[]>();
+  for (const [concept, { phrases }] of Object.entries(graph.thesaurus)) {
+    const hits = [
+      ...new Set(
+        phrases.filter((phrase) => phrase.trim() !== '' && searchesFor(pattern, segments, phrase)),
+      ),
+    ];
+    if (hits.length > 0) viaThesaurus.set(concept, hits);
   }
 
   const token = identifierToken(pattern);
@@ -204,13 +227,13 @@ export const renderConceptMatches = (graph: Graph, pattern: string): string | un
     : [];
 
   const blocks = [
-    ...[...viaThesaurus.keys()]
-      .sort()
-      .map((concept) =>
+    ...[...viaThesaurus.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([concept, hits]) =>
         conceptBlock(
           graph,
           concept,
-          ` (thesaurus ${[...(viaThesaurus.get(concept) ?? [])].map((phrase) => `"${phrase}"`).join(', ')})`,
+          ` (thesaurus ${hits.map((phrase) => `"${phrase}"`).join(', ')})`,
         ),
       ),
     ...byName.sort().map((concept) => conceptBlock(graph, concept, '')),

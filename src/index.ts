@@ -43,5 +43,6 @@ export {
   conceptClass,
   conceptClasses,
   type Thesaurus,
+  type ThesaurusEntry,
 } from './registry/types.ts';
 export { DEFAULT_KINDS, type DefaultKind } from './vocab/kinds.ts';

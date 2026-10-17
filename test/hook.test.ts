@@ -137,6 +137,7 @@ describe('renderConceptMatches — thesaurus', () => {
   const thesaurusBlock = (word: string) =>
     [
       `primitive:testFactories (thesaurus "${word}") — 3 file(s), 1 consumer(s) via @uses; \`bunx atlas query --partOf primitive:testFactories\` lists all`,
+      '  read: docs/TESTING.md#factories',
       '  src/test/factories/buildFactory.ts',
       '  src/test/factories/organizationFactory.ts',
       `  ${USER_FACTORY}`,
@@ -197,13 +198,42 @@ describe('renderConceptMatches — thesaurus', () => {
     const users = (word: string) => `feature:users (thesaurus "${word}") — 2 file(s)`;
     expect(renderConceptMatches(g, 'acquireLock')).toContain('(thesaurus "lock")');
     expect(renderConceptMatches(g, 'unlock')).toBeUndefined();
-    expect(renderConceptMatches(g, 'locks')).toBeUndefined();
+    expect(renderConceptMatches(g, 'lockfile')).toBeUndefined();
     for (const pattern of ['github', 'createGitHubClient', 'GITHUB_TOKEN'])
       expect(renderConceptMatches(g, pattern)).toContain(users('GitHub'));
     expect(renderConceptMatches(g, 'OAuthProvider')).toContain(users('oauth'));
   });
 
-  test('a concept named twice in one entry is listed once', async () => {
+  test('conjugations: plural, -ing, -ed, -er, a dropped e, y to ies', async () => {
+    const g = graph(await analyze(FIXTURE));
+    const lock = '(thesaurus "lock")';
+    for (const pattern of ['locks', 'locking', 'locked', 'locker', 'acquireLocks', 'LOCKED_ROWS'])
+      expect(renderConceptMatches(g, pattern)).toContain(lock);
+    const serialize = '(thesaurus "serialize")';
+    for (const pattern of ['serializes', 'serializing', 'serialized', 'serializer'])
+      expect(renderConceptMatches(g, pattern)).toContain(serialize);
+    expect(renderConceptMatches(g, 'seedingUsers')).toContain(thesaurusBlock('seed a user'));
+    expect(renderConceptMatches(g, 'seeded_user')).toContain(thesaurusBlock('seed a user'));
+    expect(renderConceptMatches(g, 'fixtures')).toContain(thesaurusBlock('fixture'));
+    expect(renderConceptMatches(g, 'listDirectories')).toContain('(thesaurus "directory")');
+  });
+
+  test('conjugations stay whole-word and suffix-only', async () => {
+    const g = graph(await analyze(FIXTURE));
+    for (const pattern of ['unlocked', 'blocking', 'serial', 'serializable', 'lockless'])
+      expect(renderConceptMatches(g, pattern)).toBeUndefined();
+  });
+
+  test('a hit points at the doc: its own with a section, else the concept docs entry, else none', async () => {
+    const g = graph(await analyze(FIXTURE));
+    expect(renderConceptMatches(g, 'seed a user')).toContain('  read: docs/TESTING.md#factories\n');
+    expect(renderConceptMatches(g, 'lock')).toContain(
+      '— 1 file(s), 2 consumer(s) via @uses; `bunx atlas query --partOf primitive:routeTemplates` lists all\n  read: docs/ROUTES.md\n  src/routes/makeController.ts',
+    );
+    expect(renderConceptMatches(g, 'oauth')).not.toContain('read:');
+  });
+
+  test('a phrase listed twice in one entry is labelled once', async () => {
     const g = graph(await analyze(FIXTURE));
     expect(renderConceptMatches(g, 'fixture')).toBe(
       ['atlas concept(s) matching "fixture":', '', thesaurusBlock('fixture')].join('\n'),
@@ -284,7 +314,7 @@ describe('cachedGraph', () => {
         utimesSync(thesaurus, later, later);
         const rebuilt = await cachedGraph(FIXTURE, { cacheDir });
         expect(rebuilt?.conceptToFiles['x:cached']).toBeUndefined();
-        expect(rebuilt?.thesaurus['seed a user']).toEqual(['primitive:testFactories']);
+        expect(rebuilt?.thesaurus['primitive:testFactories']?.phrases).toContain('seed a user');
       } finally {
         utimesSync(thesaurus, atime, mtime);
       }
