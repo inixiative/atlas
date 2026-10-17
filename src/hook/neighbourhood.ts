@@ -97,34 +97,94 @@ export const identifierToken = (pattern: string): string | undefined => {
   return longest && longest.length >= MIN_TOKEN ? longest : undefined;
 };
 
-// The grep-side lookup: concepts whose name the pattern's identifier names (exactly,
-// or as a prefix either way once both are long enough to mean something).
+// Words a phrase carries no meaning in: "seed a user" and `seedUser` are the same search.
+const FILLER = new Set(['a', 'an', 'the', 'to', 'of', 'for']);
+
+// The lowercase words of a phrase or identifier: camelCase and regex escapes (`\b`, `\w`)
+// split, punctuation and regex syntax dropped. Filler words go unless they are all there is.
+const wordsOf = (text: string): string[] => {
+  const words = (
+    text
+      .replace(/\\[A-Za-z]/g, ' ')
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+      .match(/[A-Za-z0-9]+/g) ?? []
+  ).map((word) => word.toLowerCase());
+  const meaningful = words.filter((word) => !FILLER.has(word));
+  return meaningful.length > 0 ? meaningful : words;
+};
+
+const containsRun = (haystack: string[], needle: string[]): boolean =>
+  needle.length > 0 &&
+  haystack.some((_, start) => needle.every((word, i) => haystack[start + i] === word));
+
+// Does a grep pattern search for this thesaurus word or phrase? Either the phrase's words
+// appear, whole and in order, among the pattern's (`acquireLock` → "lock", `seedUser` →
+// "seed a user"), or the pattern, read as a regex, matches the whole phrase (`seed.*user`,
+// `factor(y|ies)`). The regex reading needs a literal run of 3+ letters, so `.*` matches nothing.
+const searchesFor = (pattern: string, patternWords: string[], phrase: string): boolean => {
+  if (containsRun(patternWords, wordsOf(phrase))) return true;
+  if (!/[A-Za-z]{3,}/.test(pattern.replace(/\\[A-Za-z]/g, ' '))) return false;
+  try {
+    return new RegExp(`^(?:${pattern})$`, 'i').test(phrase.trim());
+  } catch {
+    return false; // ripgrep syntax JavaScript can't parse: the word reading still applied
+  }
+};
+
+const conceptBlock = (graph: Graph, concept: string, label: string): string => {
+  const files = graph.conceptToFiles[concept] ?? [];
+  const sample = files.slice(0, MAX_CONCEPT_FILES).map((file) => `  ${file}`);
+  const more =
+    files.length > MAX_CONCEPT_FILES ? [`  … ${files.length - MAX_CONCEPT_FILES} more`] : [];
+  const consumers = graph.usesConsumers[concept]?.length ?? 0;
+  return [
+    `${concept}${label} — ${files.length} file(s)${consumers > 0 ? `, ${consumers} consumer(s) via @uses` : ''}; \`bunx atlas query --partOf ${concept}\` lists all`,
+    ...sample,
+    ...more,
+  ].join('\n');
+};
+
+// The grep-side lookup. First the thesaurus (`.atlas/thesaurus.ts`): words and phrases people
+// search with, mapped by hand to the concepts they mean; a hit is labelled with the word so
+// the agent knows a person made that mapping. Then concepts whose name the pattern's
+// identifier names (exactly, or as a prefix either way once both are long enough to mean
+// something), skipping any the thesaurus already showed.
 export const renderConceptMatches = (graph: Graph, pattern: string): string | undefined => {
+  const patternWords = wordsOf(pattern);
+  const viaThesaurus = new Map<string, string[]>();
+  for (const [phrase, concepts] of Object.entries(graph.thesaurus)) {
+    if (phrase.trim() === '' || !searchesFor(pattern, patternWords, phrase)) continue;
+    for (const concept of concepts)
+      viaThesaurus.set(concept, [...(viaThesaurus.get(concept) ?? []), phrase]);
+  }
+
   const token = identifierToken(pattern);
-  if (!token) return undefined;
-  const lower = token.toLowerCase();
-  const hits = Object.keys(graph.conceptToFiles)
-    .sort()
-    .filter((concept) => {
-      const name = concept.split(':')[1]?.toLowerCase() ?? '';
-      return (
-        name === lower ||
-        (name.length >= 5 && lower.startsWith(name)) ||
-        (lower.length >= 5 && name.startsWith(lower))
-      );
-    });
-  if (hits.length === 0) return undefined;
-  const blocks = hits.map((concept) => {
-    const files = graph.conceptToFiles[concept] ?? [];
-    const sample = files.slice(0, MAX_CONCEPT_FILES).map((file) => `  ${file}`);
-    const more =
-      files.length > MAX_CONCEPT_FILES ? [`  … ${files.length - MAX_CONCEPT_FILES} more`] : [];
-    const consumers = graph.usesConsumers[concept]?.length ?? 0;
-    return [
-      `${concept} — ${files.length} file(s)${consumers > 0 ? `, ${consumers} consumer(s) via @uses` : ''}; \`bunx atlas query --partOf ${concept}\` lists all`,
-      ...sample,
-      ...more,
-    ].join('\n');
-  });
-  return `atlas concept(s) matching "${token}":\n\n${blocks.join('\n\n')}`;
+  const lower = token?.toLowerCase();
+  const byName = lower
+    ? Object.keys(graph.conceptToFiles).filter((concept) => {
+        if (viaThesaurus.has(concept)) return false;
+        const name = concept.split(':')[1]?.toLowerCase() ?? '';
+        return (
+          name === lower ||
+          (name.length >= 5 && lower.startsWith(name)) ||
+          (lower.length >= 5 && name.startsWith(lower))
+        );
+      })
+    : [];
+
+  const blocks = [
+    ...[...viaThesaurus.keys()]
+      .sort()
+      .map((concept) =>
+        conceptBlock(
+          graph,
+          concept,
+          ` (thesaurus ${(viaThesaurus.get(concept) ?? []).map((phrase) => `"${phrase}"`).join(', ')})`,
+        ),
+      ),
+    ...byName.sort().map((concept) => conceptBlock(graph, concept, '')),
+  ];
+  if (blocks.length === 0) return undefined;
+  return `atlas concept(s) matching "${pattern}":\n\n${blocks.join('\n\n')}`;
 };

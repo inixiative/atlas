@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Thesaurus** (`.atlas/thesaurus.ts`, optional): a hand-curated map from the words and phrases
+  people search with to concept ids (`{ 'seed a user': ['primitive:testFactories'] }`).
+  `atlas hook grep` matches a pattern against it case-insensitively on whole words or phrases
+  (the phrase's words in order inside the pattern, or the pattern as a regex over the whole
+  phrase), lists those concepts first labelled `(thesaurus "<word>")`, then the concept-name
+  matches it didn't already show. The hook header now quotes the grep pattern itself.
+- `atlas check` flags a thesaurus entry with an empty word, naming no concept, or naming an
+  unregistered concept (`[thesaurus]` problems; also run on scoped checks).
+- `Graph` (and `graph --json`) carries `thesaurus`; `Thesaurus` type exported.
+
+## 0.3.0
+
 - `atlas hook read` / `atlas hook grep`: Claude Code PostToolUse hooks that put a file's concept
   neighbourhood (siblings, `@uses` consumers, its own `@uses`, and for factories/constructors the
   count of that kind in the concept) or a grep pattern's matching concepts into the agent's

@@ -1,4 +1,4 @@
-import type { ConceptRegistry } from '../registry/types.ts';
+import type { ConceptRegistry, Thesaurus } from '../registry/types.ts';
 
 // `partOfFor` is a LAZY descriptor, not a value. The consumer's config.ts can
 // reference it before the concept registry is loaded; the stamp engine resolves it
@@ -62,4 +62,5 @@ export const defineConfig = (config: AtlasConfigInput): AtlasConfigInput => conf
 export type LoadedConfig = ConfigDefaults & {
   kinds: readonly string[];
   concepts: ConceptRegistry;
+  thesaurus: Thesaurus;
 };

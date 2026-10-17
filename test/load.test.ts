@@ -46,6 +46,22 @@ describe('loadConfig — loud on misconfiguration', () => {
     );
   });
 
+  test('a present thesaurus.ts exporting neither THESAURUS nor default throws', async () => {
+    await withTempAtlas({ '.atlas/thesaurus.ts': 'export const WRONG = {};\n' }, async (dir) => {
+      expect(loadConfig(dir)).rejects.toThrow(/thesaurus\.ts/);
+    });
+  });
+
+  test('thesaurus.ts is optional; when present its THESAURUS or default export loads', async () => {
+    await withTempAtlas(
+      { '.atlas/thesaurus.ts': "export default { lock: ['mutex'] };\n" },
+      async (dir) => {
+        expect((await loadConfig(dir)).thesaurus).toEqual({ lock: ['mutex'] });
+      },
+    );
+    expect((await loadConfig(MINI)).thesaurus).toEqual({});
+  });
+
   test('no .atlas/ at all falls back to defaults without throwing', async () => {
     await withTempAtlas({ 'src/x.ts': 'export const x = 1;\n' }, async (dir) => {
       const cfg = await loadConfig(dir);

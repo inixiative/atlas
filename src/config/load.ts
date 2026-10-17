@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { DEFAULT_INCLUDE } from '../fs/walk.ts';
-import type { ConceptRegistry } from '../registry/types.ts';
+import type { ConceptRegistry, Thesaurus } from '../registry/types.ts';
 import { DEFAULT_KINDS } from '../vocab/kinds.ts';
 import type { AtlasConfigInput, LoadedConfig } from './defineConfig.ts';
 
@@ -24,19 +24,21 @@ const named = <T>(
   throw new Error(`.atlas/${file} exists but exports none of: ${names.join(', ')}`);
 };
 
-// Load the consumer's `.atlas/` config: kinds → concepts → config (no
+// Load the consumer's `.atlas/` config: kinds → concepts → thesaurus → config (no
 // evaluation-order coupling, since partOfFor is a lazy descriptor). atlas ships
-// the kinds defaults; the repo OWNS concepts.ts.
+// the kinds defaults; the repo OWNS concepts.ts and the optional thesaurus.ts.
 export const loadConfig = async (root: string): Promise<LoadedConfig> => {
   const dir = resolve(root, '.atlas');
-  const [kindsMod, conceptsMod, configMod] = await Promise.all([
+  const [kindsMod, conceptsMod, thesaurusMod, configMod] = await Promise.all([
     loadModule(resolve(dir, 'kinds.ts')),
     loadModule(resolve(dir, 'concepts.ts')),
+    loadModule(resolve(dir, 'thesaurus.ts')),
     loadModule(resolve(dir, 'config.ts')),
   ]);
 
   const kinds = named<readonly string[]>(kindsMod, 'kinds.ts', 'KINDS', 'default') ?? DEFAULT_KINDS;
   const concepts = named<ConceptRegistry>(conceptsMod, 'concepts.ts', 'CONCEPTS', 'default') ?? {};
+  const thesaurus = named<Thesaurus>(thesaurusMod, 'thesaurus.ts', 'THESAURUS', 'default') ?? {};
   const cfg = named<AtlasConfigInput>(configMod, 'config.ts', 'default', 'config') ?? {};
 
   // Concept keys are either `class:name` (a layer member) or a bare classless
@@ -54,6 +56,7 @@ export const loadConfig = async (root: string): Promise<LoadedConfig> => {
   return {
     kinds,
     concepts,
+    thesaurus,
     stamp: cfg.stamp ?? [],
     ignore: cfg.ignore ?? [],
     include: cfg.include ?? DEFAULT_INCLUDE,

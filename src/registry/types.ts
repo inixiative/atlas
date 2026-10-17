@@ -10,6 +10,11 @@ export type ConceptEntry = Record<string, string[]>;
 // from these keys, never an enum atlas ships.
 export type ConceptRegistry = Record<string, ConceptEntry>;
 
+// The thesaurus: the words and phrases people search with → the concept ids they mean.
+// Curated by hand from how people describe the job, so a grep for "seed a user" or
+// "lock" finds `primitive:testFactories` or `mutex` even though no concept is named that.
+export type Thesaurus = Record<string, string[]>;
+
 // `class:name` → its class (the prefix). Returns null for a malformed key.
 export const conceptClass = (key: string): string | null => {
   const idx = key.indexOf(':');

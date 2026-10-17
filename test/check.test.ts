@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { resolve } from 'node:path';
 import { analyze } from '../src/analyze.ts';
-import { checkVocab, runCheck } from '../src/commands/check.ts';
+import { checkThesaurus, checkVocab, runCheck } from '../src/commands/check.ts';
 import type { AtlasAnnotation } from '../src/parse/parseAtlasBlock.ts';
 
 const MINI = resolve(import.meta.dir, 'fixtures/mini');
@@ -36,6 +36,7 @@ describe('checkVocab', () => {
       config: {
         kinds: ['controller'],
         concepts: { 'feature:billing': {} },
+        thesaurus: {},
         stamp: [],
         ignore: [],
         include: [],
@@ -66,6 +67,7 @@ describe('checkVocab', () => {
         config: {
           kinds: ['controller'],
           concepts: { 'feature:billing': {} },
+          thesaurus: {},
           stamp: [],
           ignore: [],
           include: [],
@@ -79,6 +81,50 @@ describe('checkVocab', () => {
   });
 });
 
+describe('checkThesaurus', () => {
+  const withThesaurus = (thesaurus: Record<string, string[]>) =>
+    checkThesaurus({
+      root: '/x',
+      config: {
+        kinds: [],
+        concepts: { 'primitive:testFactories': {}, mutex: {} },
+        thesaurus,
+        stamp: [],
+        ignore: [],
+        include: [],
+        references: {},
+      },
+      files: [],
+    });
+
+  test('flags an entry naming an unknown concept', () => {
+    const problems = withThesaurus({ lock: ['mutex', 'primitive:ghost'] });
+    expect(problems).toEqual([
+      {
+        kind: 'thesaurus',
+        file: '.atlas/thesaurus.ts',
+        concept: 'primitive:ghost',
+        message:
+          "thesaurus entry 'lock' names 'primitive:ghost', which is not a registered concept",
+      },
+    ]);
+  });
+
+  test('flags an empty word and an entry naming no concept', () => {
+    const messages = withThesaurus({ '  ': ['mutex'], lock: [] }).map((p) => p.message);
+    expect(messages).toEqual([
+      'thesaurus entry with an empty word',
+      "thesaurus entry 'lock' names no concept",
+    ]);
+  });
+
+  test('passes entries that name registered concepts', () => {
+    expect(withThesaurus({ 'seed a user': ['primitive:testFactories'], lock: ['mutex'] })).toEqual(
+      [],
+    );
+  });
+});
+
 describe('checkReferences — resolver safety', () => {
   test('a throwing reference resolver becomes a reference problem, not a crash', async () => {
     const { checkReferences } = await import('../src/commands/check.ts');
@@ -87,6 +133,7 @@ describe('checkReferences — resolver safety', () => {
       config: {
         kinds: [],
         concepts: { 'feature:x': { docs: ['A.md'] } },
+        thesaurus: {},
         stamp: [],
         ignore: [],
         include: [],

@@ -9,6 +9,7 @@ export type Graph = {
   usesConsumers: Record<string, string[]>; // via @uses (dependency)
   fileToConcepts: Record<string, { kind: string[]; partOf: string[]; uses: string[] }>;
   docToConcepts: Record<string, string[]>;
+  thesaurus: Record<string, string[]>; // the repo's .atlas/thesaurus.ts, for the grep hook
 };
 
 const push = (rec: Record<string, string[]>, key: string, val: string): void => {
@@ -39,5 +40,6 @@ export const graph = (a: Analysis): Graph => {
     usesConsumers,
     fileToConcepts,
     docToConcepts: invert(a.config.concepts, 'docs'),
+    thesaurus: a.config.thesaurus,
   };
 };

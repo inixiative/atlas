@@ -44,7 +44,8 @@ repo **owns** its concept registry.
 .atlas/
   config.ts     // stamp rules (path → tags) + ignore + reference resolvers
   kinds.ts      // @kind vocab — extends atlas's defaults
-  concepts.ts      // the concept registry — repo-OWNED, structure only
+  concepts.ts   // the concept registry — repo-OWNED, structure only
+  thesaurus.ts  // optional: the words people search with → concept ids (see Thesaurus)
 ```
 
 ```ts
@@ -74,7 +75,8 @@ export default defineConfig({
 ```
 
 A complete, commented set you can copy into your repo's `.atlas/` is in
-[`examples/atlas-config/`](./examples/atlas-config/) (`kinds.ts`, `concepts.ts`, `config.ts`).
+[`examples/atlas-config/`](./examples/atlas-config/) (`kinds.ts`, `concepts.ts`, `config.ts`,
+`thesaurus.ts`).
 
 ## CLI
 
@@ -132,8 +134,9 @@ primitive:testFactories — 2 other file(s), 1 consumer(s) via @uses; `bunx atla
 ```
 
 A file of `@kind factory` or `@kind constructor` also gets a line counting that kind in its
-concept (`REACH_KINDS`). On Grep, the pattern's longest identifier is matched against concept
-names and the matching concepts' files are listed.
+concept (`REACH_KINDS`). On Grep, the pattern is matched first against the
+[thesaurus](#thesaurus), then its longest identifier against concept names, and the matching
+concepts' files are listed.
 
 Install them with `atlas setup` (asks first; `atlas setup --yes` for scripts and agents). It
 merges two `PostToolUse` entries into `.claude/settings.json`, leaves every other key and hook as it
@@ -177,12 +180,54 @@ How they behave:
 - **The owning `.atlas/` is the one above the file**, so a file in a worktree maps against that
   worktree's config even when the session runs from the main checkout.
 - **Cached graph.** The graph is built with atlas's own `analyze` and cached per repo root in the
-  OS temp dir for 10 minutes, keyed by atlas version and rebuilt early when a `.atlas/` file
-  changes.
+  OS temp dir for 10 minutes, keyed by atlas version and rebuilt early when any `.atlas/` file
+  (`thesaurus.ts` included) changes.
 - **Harness-agnostic core.** `renderNeighbourhood(graph, relPath)` and
   `renderConceptMatches(graph, pattern)` return plain text; `runClaudeCodeHook` is the Claude Code
   adapter (stdin JSON in, `hookSpecificOutput.additionalContext` out). Another harness needs only
   its own adapter.
+
+### Thesaurus
+
+A grep for the job ("seed a user", "lock", "factory") names no concept, so the grep hook used to
+say nothing at exactly the moment an agent was looking for something that already exists. The
+thesaurus is a plain map that sits beside the registry and makes those searches land: the words
+and phrases people search with, each mapped to the concept ids they mean.
+
+```ts
+// .atlas/thesaurus.ts — optional. Keys are words or phrases; values are concept ids from concepts.ts.
+import type { Thesaurus } from '@inixiative/atlas';
+
+export const THESAURUS: Thesaurus = {
+  'seed a user': ['primitive:testFactories'],
+  factory: ['primitive:testFactories'],
+  lock: ['primitive:mutex'],
+};
+```
+
+Matching is case-insensitive and on whole words or phrases. An entry matches a grep pattern when
+its words appear in order among the pattern's words (camelCase and `snake_case` split, `a`/`an`/
+`the`/`to`/`of`/`for` ignored: `seedUser` and `seed_user` match "seed a user", `acquireLock`
+matches "lock", `unlock` does not), or when the pattern, read as a regex, matches the whole phrase
+(`seed.*user`, `factor(y|ies)`; a pattern with no literal run of three letters, like `.*`, matches
+nothing). Thesaurus hits are listed first, labelled so the agent knows a person made the mapping;
+then come the concept-name matches not already shown:
+
+```
+atlas concept(s) matching "seed.*user":
+
+primitive:testFactories (thesaurus "seed a user") — 3 file(s), 1 consumer(s) via @uses; `bunx atlas query --partOf primitive:testFactories` lists all
+  src/test/factories/buildFactory.ts
+  src/test/factories/organizationFactory.ts
+  src/test/factories/userFactory.ts
+```
+
+`atlas check` flags an entry with an empty word, one that names no concept, and one that names a
+concept the registry doesn't have. Whether a mapping is apt is the curator's call.
+
+**Keeping it up:** when a search misses and you later find the thing, add the words you searched
+with, mapped to the concept you found. Entries come from how people describe the job, never from a
+test case's expected answer: a thesaurus tuned to its tests only teaches the tests.
 
 ## Visualize
 

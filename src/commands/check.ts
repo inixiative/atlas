@@ -2,10 +2,11 @@ import { resolve } from 'node:path';
 import type { Analysis } from '../analyze.ts';
 
 // Enforcement is EXISTENCE, not correctness: presence of a block, validity of
-// the vocabulary used, and existence of referenced docs. atlas never
+// the vocabulary used, existence of referenced docs, and thesaurus entries that
+// name real concepts. atlas never
 // checks "is this @partOf actually true" or any derived status — fool's errands.
 export type Problem = {
-  kind: 'presence' | 'vocab' | 'reference';
+  kind: 'presence' | 'vocab' | 'reference' | 'thesaurus';
   file?: string;
   concept?: string;
   message: string;
@@ -81,14 +82,47 @@ export const checkReferences = async (a: Analysis): Promise<Problem[]> => {
   return problems;
 };
 
+const THESAURUS_FILE = '.atlas/thesaurus.ts';
+
+// thesaurus existence — every entry is a non-blank word or phrase naming at least one
+// concept, and every concept it names is registered. Whether the mapping is *apt* is
+// the curator's call, not atlas's.
+export const checkThesaurus = (a: Analysis): Problem[] => {
+  const concepts = new Set(Object.keys(a.config.concepts));
+  const problems: Problem[] = [];
+  for (const [word, ids] of Object.entries(a.config.thesaurus)) {
+    if (word.trim() === '')
+      problems.push({
+        kind: 'thesaurus',
+        file: THESAURUS_FILE,
+        message: 'thesaurus entry with an empty word',
+      });
+    if (ids.length === 0)
+      problems.push({
+        kind: 'thesaurus',
+        file: THESAURUS_FILE,
+        message: `thesaurus entry '${word}' names no concept`,
+      });
+    for (const id of ids)
+      if (!concepts.has(id))
+        problems.push({
+          kind: 'thesaurus',
+          file: THESAURUS_FILE,
+          concept: id,
+          message: `thesaurus entry '${word}' names '${id}', which is not a registered concept`,
+        });
+  }
+  return problems;
+};
+
 // Reference existence is a registry-wide concern, so it is skipped when a run is
-// scoped to a subset of files (incremental PR checks) — only the file-level
-// presence/vocab checks make sense there.
+// scoped to a subset of files (incremental PR checks). The thesaurus check stays on:
+// it reads only `.atlas/` config, which is whole in every run.
 export const runCheck = async (
   a: Analysis,
   opts: { references?: boolean } = {},
 ): Promise<CheckResult> => {
-  const problems = [...checkPresence(a), ...checkVocab(a)];
+  const problems = [...checkPresence(a), ...checkVocab(a), ...checkThesaurus(a)];
   if (opts.references !== false) problems.push(...(await checkReferences(a)));
   return { ok: problems.length === 0, problems };
 };

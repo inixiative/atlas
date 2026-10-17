@@ -122,7 +122,7 @@ describe('renderConceptMatches', () => {
   test('a prefix of a concept name matches, with file count and consumers', async () => {
     const g = graph(await analyze(FIXTURE));
     const text = renderConceptMatches(g, 'testFactor\\w+') ?? '';
-    expect(text).toContain('atlas concept(s) matching "testFactor"');
+    expect(text).toContain('atlas concept(s) matching "testFactor\\w+"');
     expect(text).toContain('primitive:testFactories — 3 file(s), 1 consumer(s) via @uses');
     expect(text).toContain(`  ${USER_FACTORY}`);
   });
@@ -130,6 +130,76 @@ describe('renderConceptMatches', () => {
   test('no concept named by the pattern → nothing', async () => {
     const g = graph(await analyze(FIXTURE));
     expect(renderConceptMatches(g, 'somethingElse')).toBeUndefined();
+  });
+});
+
+describe('renderConceptMatches — thesaurus', () => {
+  const thesaurusBlock = (word: string) =>
+    [
+      `primitive:testFactories (thesaurus "${word}") — 3 file(s), 1 consumer(s) via @uses; \`bunx atlas query --partOf primitive:testFactories\` lists all`,
+      '  src/test/factories/buildFactory.ts',
+      '  src/test/factories/organizationFactory.ts',
+      `  ${USER_FACTORY}`,
+    ].join('\n');
+
+  test('a phrase hit renders the concept block, labelled with the thesaurus word', async () => {
+    const g = graph(await analyze(FIXTURE));
+    expect(renderConceptMatches(g, 'seed a user')).toBe(
+      ['atlas concept(s) matching "seed a user":', '', thesaurusBlock('seed a user')].join('\n'),
+    );
+  });
+
+  test('a phrase matches a regex over it, and an identifier made of its words', async () => {
+    const g = graph(await analyze(FIXTURE));
+    for (const pattern of ['seed.*user', 'seed\\s+(a\\s+)?user', 'seedUser\\(', '\\bseed_user\\b'])
+      expect(renderConceptMatches(g, pattern)).toContain(thesaurusBlock('seed a user'));
+  });
+
+  test('matching is case-insensitive both ways', async () => {
+    const g = graph(await analyze(FIXTURE));
+    for (const pattern of ['make a controller', 'MAKE.*CONTROLLER', 'makeController'])
+      expect(renderConceptMatches(g, pattern)).toContain(
+        'primitive:routeTemplates (thesaurus "Make A Controller") — 1 file(s), 2 consumer(s) via @uses',
+      );
+  });
+
+  test('a single word matches only as a whole word', async () => {
+    const g = graph(await analyze(FIXTURE));
+    expect(renderConceptMatches(g, 'loadFixture')).toContain(thesaurusBlock('fixture'));
+    expect(renderConceptMatches(g, 'fixtures?')).toContain(thesaurusBlock('fixture'));
+    expect(renderConceptMatches(g, 'fixtur(e|es)')).toContain(thesaurusBlock('fixture'));
+    expect(renderConceptMatches(g, 'fixtureless')).toBeUndefined();
+    expect(renderConceptMatches(g, 'seed')).toBeUndefined();
+  });
+
+  test('a regex with no literal word of its own matches no phrase', async () => {
+    const g = graph(await analyze(FIXTURE));
+    expect(renderConceptMatches(g, '.*')).toBeUndefined();
+    expect(renderConceptMatches(g, '[a-z ]+')).toBeUndefined();
+  });
+
+  test('thesaurus hits come first; a concept-name hit it already showed is not repeated', async () => {
+    const g = graph(await analyze(FIXTURE));
+    const text = renderConceptMatches(g, 'routeTemplates|fixture') ?? '';
+    expect(text.indexOf('primitive:testFactories (thesaurus "fixture")')).toBeLessThan(
+      text.indexOf('primitive:routeTemplates —'),
+    );
+    expect(
+      renderConceptMatches(g, 'testFactories|fixture')?.match(/primitive:testFactories/g),
+    ).toEqual(
+      ['primitive:testFactories', 'primitive:testFactories'], // the block's line + its query hint
+    );
+  });
+
+  test('no thesaurus or concept match → the hook prints nothing', async () => {
+    await withCacheDir(async (cacheDir) => {
+      const out = await runClaudeCodeHook(
+        'grep',
+        JSON.stringify({ cwd: FIXTURE, tool_input: { pattern: 'invoice the customer' } }),
+        { cacheDir },
+      );
+      expect(out).toBe('');
+    });
   });
 });
 
@@ -157,6 +227,25 @@ describe('cachedGraph', () => {
         expect(rebuilt?.conceptToFiles['x:cached']).toBeUndefined();
       } finally {
         utimesSync(concepts, atime, mtime);
+      }
+    });
+  });
+
+  test('an edit to .atlas/thesaurus.ts invalidates the cache', async () => {
+    await withCacheDir(async (cacheDir) => {
+      await cachedGraph(FIXTURE, { cacheDir });
+      const cachePath = join(cacheDir, readdirSync(cacheDir)[0] as string);
+      await Bun.write(cachePath, JSON.stringify({ conceptToFiles: { 'x:cached': [] } }));
+      const thesaurus = join(FIXTURE, '.atlas/thesaurus.ts');
+      const { atime, mtime } = statSync(thesaurus);
+      try {
+        const later = new Date(statSync(cachePath).mtimeMs + 5_000);
+        utimesSync(thesaurus, later, later);
+        const rebuilt = await cachedGraph(FIXTURE, { cacheDir });
+        expect(rebuilt?.conceptToFiles['x:cached']).toBeUndefined();
+        expect(rebuilt?.thesaurus['seed a user']).toEqual(['primitive:testFactories']);
+      } finally {
+        utimesSync(thesaurus, atime, mtime);
       }
     });
   });
@@ -225,6 +314,17 @@ describe('runClaudeCodeHook', () => {
         { cacheDir },
       );
       expect(contextOf(out)).toContain('primitive:routeTemplates — 1 file(s), 2 consumer(s)');
+    });
+  });
+
+  test('grep: a thesaurus phrase reaches the agent through the hook', async () => {
+    await withCacheDir(async (cacheDir) => {
+      const out = await runClaudeCodeHook(
+        'grep',
+        JSON.stringify({ cwd: FIXTURE, tool_input: { pattern: 'seed.*user' } }),
+        { cacheDir },
+      );
+      expect(contextOf(out)).toContain('primitive:testFactories (thesaurus "seed a user")');
     });
   });
 
