@@ -10,6 +10,7 @@ import { parseAtlasBlock } from '../src/parse/parseAtlasBlock.ts';
 const config: LoadedConfig = {
   kinds: [],
   concepts: { 'feature:billing': { module: ['billing'] } },
+  thesaurus: {},
   stamp: [
     { include: '**/controllers/**', kind: 'controller' },
     { include: 'src/modules/$1/**', partOf: partOfFor('module', '$1') },

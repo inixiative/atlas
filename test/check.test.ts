@@ -1,8 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import { resolve } from 'node:path';
 import { analyze } from '../src/analyze.ts';
-import { checkVocab, runCheck } from '../src/commands/check.ts';
+import { checkThesaurus, checkVocab, runCheck } from '../src/commands/check.ts';
 import type { AtlasAnnotation } from '../src/parse/parseAtlasBlock.ts';
+import type { Thesaurus } from '../src/registry/types.ts';
 
 const MINI = resolve(import.meta.dir, 'fixtures/mini');
 
@@ -36,6 +37,7 @@ describe('checkVocab', () => {
       config: {
         kinds: ['controller'],
         concepts: { 'feature:billing': {} },
+        thesaurus: {},
         stamp: [],
         ignore: [],
         include: [],
@@ -66,6 +68,7 @@ describe('checkVocab', () => {
         config: {
           kinds: ['controller'],
           concepts: { 'feature:billing': {} },
+          thesaurus: {},
           stamp: [],
           ignore: [],
           include: [],
@@ -79,6 +82,78 @@ describe('checkVocab', () => {
   });
 });
 
+describe('checkThesaurus', () => {
+  const root = resolve(import.meta.dir, 'fixtures/hooks');
+  const withThesaurus = (thesaurus: Thesaurus, opts: { references?: boolean } = {}) =>
+    checkThesaurus(
+      {
+        root,
+        config: {
+          kinds: [],
+          concepts: { 'primitive:testFactories': { docs: ['TESTING.md'] }, mutex: {} },
+          thesaurus,
+          stamp: [],
+          ignore: [],
+          include: [],
+          references: { docs: (v) => `docs/${v}` },
+        },
+        files: [],
+      },
+      opts,
+    );
+  const messages = async (thesaurus: Thesaurus) =>
+    (await withThesaurus(thesaurus)).map((p) => p.message);
+
+  test('flags an entry for an unknown concept', async () => {
+    expect(await withThesaurus({ 'primitive:ghost': { phrases: ['lock'] } })).toEqual([
+      {
+        kind: 'thesaurus',
+        file: '.atlas/thesaurus.ts',
+        concept: 'primitive:ghost',
+        message: "thesaurus names 'primitive:ghost', which is not a registered concept",
+      },
+    ]);
+  });
+
+  test('flags an empty phrase list and an empty phrase', async () => {
+    expect(
+      await messages({
+        mutex: { phrases: [] },
+        'primitive:testFactories': { phrases: ['seed', ' '] },
+      }),
+    ).toEqual([
+      "thesaurus entry 'mutex' has no phrases",
+      "thesaurus entry 'primitive:testFactories' has an empty phrase",
+    ]);
+  });
+
+  test('flags a doc that does not resolve to a file, ignoring the #section', async () => {
+    expect(await messages({ mutex: { phrases: ['lock'], doc: 'LOCKS.md#mutex' } })).toEqual([
+      "thesaurus entry 'mutex': doc 'LOCKS.md#mutex' → docs/LOCKS.md does not exist",
+    ]);
+  });
+
+  test('a phrase with no letter or digit counts as empty', async () => {
+    expect(await messages({ mutex: { phrases: ['lock', '!!!'] } })).toEqual([
+      "thesaurus entry 'mutex' has an empty phrase",
+    ]);
+  });
+
+  test('a scoped run skips the doc check, like the other reference checks', async () => {
+    const thesaurus = { mutex: { phrases: ['lock'], doc: 'LOCKS.md' } };
+    expect(await withThesaurus(thesaurus, { references: false })).toEqual([]);
+  });
+
+  test('passes registered concepts with phrases and a real doc', async () => {
+    expect(
+      await withThesaurus({
+        'primitive:testFactories': { phrases: ['seed a user'], doc: 'TESTING.md#factories' },
+        mutex: { phrases: ['lock'] },
+      }),
+    ).toEqual([]);
+  });
+});
+
 describe('checkReferences — resolver safety', () => {
   test('a throwing reference resolver becomes a reference problem, not a crash', async () => {
     const { checkReferences } = await import('../src/commands/check.ts');
@@ -87,6 +162,7 @@ describe('checkReferences — resolver safety', () => {
       config: {
         kinds: [],
         concepts: { 'feature:x': { docs: ['A.md'] } },
+        thesaurus: {},
         stamp: [],
         ignore: [],
         include: [],

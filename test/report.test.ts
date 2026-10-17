@@ -32,6 +32,7 @@ describe('buildCoverageReport', () => {
       config: {
         kinds: [],
         concepts: { 'feature:a': {}, 'feature:b': {} },
+        thesaurus: {},
         stamp: [],
         ignore: [],
         include: [],

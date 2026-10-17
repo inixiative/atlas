@@ -10,6 +10,14 @@ export type ConceptEntry = Record<string, string[]>;
 // from these keys, never an enum atlas ships.
 export type ConceptRegistry = Record<string, ConceptEntry>;
 
+// The thesaurus: each concept's phrases, the words people search with when they mean it,
+// and where its doc is. Curated by hand from how people describe the job, so a grep for
+// "seed a user" lands on `primitive:testFactories` and points at the doc to read.
+// `doc` is a `docs:` value as concepts.ts writes it (run through `references.docs`), with an
+// optional `#section`; it defaults to the concept's first `docs:` entry.
+export type ThesaurusEntry = { phrases: string[]; doc?: string };
+export type Thesaurus = Record<string, ThesaurusEntry>;
+
 // `class:name` → its class (the prefix). Returns null for a malformed key.
 export const conceptClass = (key: string): string | null => {
   const idx = key.indexOf(':');

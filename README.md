@@ -44,7 +44,8 @@ repo **owns** its concept registry.
 .atlas/
   config.ts     // stamp rules (path → tags) + ignore + reference resolvers
   kinds.ts      // @kind vocab — extends atlas's defaults
-  concepts.ts      // the concept registry — repo-OWNED, structure only
+  concepts.ts   // the concept registry — repo-OWNED, structure only
+  thesaurus.ts  // optional: per concept, the phrases people search with + its doc (see Thesaurus)
 ```
 
 ```ts
@@ -74,13 +75,14 @@ export default defineConfig({
 ```
 
 A complete, commented set you can copy into your repo's `.atlas/` is in
-[`examples/atlas-config/`](./examples/atlas-config/) (`kinds.ts`, `concepts.ts`, `config.ts`).
+[`examples/atlas-config/`](./examples/atlas-config/) (`kinds.ts`, `concepts.ts`, `config.ts`,
+`thesaurus.ts`).
 
 ## CLI
 
 ```bash
 atlas graph       # reverse indexes: concept → files, file → concepts, doc → concepts
-atlas check       # presence + vocab existence + reference existence  (the CI command)
+atlas check       # presence + vocab + reference + thesaurus existence  (the CI command)
 atlas coverage    # unannotated files; @uses curation buckets; unresolved memberships
 atlas generate    # write MAP.md from the annotated tree
 atlas report      # coverage gaps + concept graph → COVERAGE.md (Mermaid) and atlas.html (Cytoscape)
@@ -132,8 +134,9 @@ primitive:testFactories — 2 other file(s), 1 consumer(s) via @uses; `bunx atla
 ```
 
 A file of `@kind factory` or `@kind constructor` also gets a line counting that kind in its
-concept (`REACH_KINDS`). On Grep, the pattern's longest identifier is matched against concept
-names and the matching concepts' files are listed.
+concept (`REACH_KINDS`). On Grep, the pattern is matched first against the
+[thesaurus](#thesaurus), then its longest identifier against concept names, and the matching
+concepts' files are listed.
 
 Install them with `atlas setup` (asks first; `atlas setup --yes` for scripts and agents). It
 merges two `PostToolUse` entries into `.claude/settings.json`, leaves every other key and hook as it
@@ -177,12 +180,83 @@ How they behave:
 - **The owning `.atlas/` is the one above the file**, so a file in a worktree maps against that
   worktree's config even when the session runs from the main checkout.
 - **Cached graph.** The graph is built with atlas's own `analyze` and cached per repo root in the
-  OS temp dir for 10 minutes, keyed by atlas version and rebuilt early when a `.atlas/` file
-  changes.
+  OS temp dir for 10 minutes, keyed by atlas version and rebuilt early when any `.atlas/` file
+  (`thesaurus.ts` included) changes.
 - **Harness-agnostic core.** `renderNeighbourhood(graph, relPath)` and
   `renderConceptMatches(graph, pattern)` return plain text; `runClaudeCodeHook` is the Claude Code
   adapter (stdin JSON in, `hookSpecificOutput.additionalContext` out). Another harness needs only
   its own adapter.
+
+### Thesaurus
+
+A grep for the job ("seed a user", "lock", "factory") names no concept, so the grep hook used to
+say nothing at exactly the moment an agent was looking for something that already exists. The
+thesaurus sits beside the registry and makes those searches land. Like a book's thesaurus it is
+keyed by the thing, not the word: each concept lists the phrases people search with when they mean
+it, and where its doc is, so a hit also says where to read.
+
+```ts
+// .atlas/thesaurus.ts — optional. Keyed by concept id from concepts.ts.
+import type { Thesaurus } from '@inixiative/atlas';
+
+export const THESAURUS: Thesaurus = {
+  'primitive:testFactories': {
+    phrases: ['seed a user', 'factory', 'fixture'],
+    doc: 'TESTING.md#factories', // optional: a `docs:` value + optional #section
+  },
+  'primitive:mutex': { phrases: ['lock', 'serialize'] }, // doc defaults to the concept's first `docs:`
+};
+```
+
+`doc` takes the same value a `docs:` entry in `concepts.ts` does and goes through the same
+`references.docs` resolver (as written when there is none); a `#section` is kept on the end. Leave
+it out and the concept's first `docs:` entry is used, so a doc is never written twice.
+
+Matching is case-insensitive and on whole words or phrases:
+
+- **Words, in order.** One alternative of the pattern spells the phrase in consecutive whole words,
+  compared joined: camelCase and `snake_case` split, `a`/`an`/`the`/`to`/`of`/`for` ignored.
+  `seedUser` and `seed_user` match "seed a user", `acquireLock` matches "lock",
+  `createGitHubClient` matches "github". `unlock`, `lockfile` and `seed|user` (two alternatives)
+  match nothing. Only an unescaped `|`, `(` or `)` separates alternatives.
+- **Conjugations.** Each phrase word also matches its simple English inflections: `-s`, `-es`,
+  `-ing`, `-ed`, `-er`; a final `e` dropped before `-ing`/`-ed`/`-er`; a final consonant after a
+  single vowel doubled (`log` → `logging`, `logger`; `stop` → `stopped`); a consonant + `y` becoming
+  `-ies`/`-ied`. So "lock" matches `locks`, `locking`, `locked`, `locker`; "serialize" matches
+  `serializing`, `serialized`; "factory" matches `factories`. A three-letter word keeps its `e`
+  before `-er`, so "use" matches `using` and `used` but not `user`. It is a suffix rule, not a
+  stemmer, and stays whole-word: `unlocked`, `blocking` and `serializable` don't match. Write
+  phrases in their base form.
+- **The pattern as a regex.** The pattern matches the whole phrase (`seed.*user`, `factor(y|ies)`),
+  provided one of its own literal words of three or more letters starts a word of the phrase, so
+  `.*` matches nothing and `lock|.*` reaches "lock the door" but not "unlock the door". This
+  reading follows regex semantics rather than whole words, and is skipped for patterns over 200
+  characters, nested quantifiers, more than four unbounded quantifiers, and syntax JavaScript can't
+  parse.
+
+Thesaurus hits are listed first, labelled with the phrase so the agent knows a person made the
+mapping, with a `read:` line pointing at the doc; past eight concepts the rest are counted, not
+listed. Then come the concept-name matches not already shown:
+
+```
+atlas concept(s) matching "seeding.*users?":
+
+primitive:testFactories (thesaurus "seed a user") — 3 file(s), 1 consumer(s) via @uses; `bunx atlas query --partOf primitive:testFactories` lists all
+  read: docs/claude/TESTING.md#factories
+  src/test/factories/buildFactory.ts
+  src/test/factories/organizationFactory.ts
+  src/test/factories/userFactory.ts
+```
+
+`atlas check` flags an entry for a concept the registry doesn't have, an empty phrase list, an empty
+phrase (one with no letter or digit), and a `doc` whose file doesn't resolve to a real file; a
+scoped `atlas check <target>` skips the doc check like the other reference checks. `loadConfig`
+refuses an entry with any key besides `phrases` and `doc`, so a `docs:` typo can't silently fall
+back to the default doc. Whether a phrase is apt is the curator's call.
+
+**Keeping it up:** when a search misses and you later find the thing, add the words you searched
+with to that concept's phrases. Phrases come from how people describe the job, never from a test
+case's expected answer: a thesaurus tuned to its tests only teaches the tests.
 
 ## Visualize
 
