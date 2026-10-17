@@ -7,7 +7,7 @@ import { invert } from '../registry/invert.ts';
 export type Graph = {
   conceptToFiles: Record<string, string[]>; // via @partOf (membership)
   usesConsumers: Record<string, string[]>; // via @uses (dependency)
-  fileToConcepts: Record<string, { partOf: string[]; uses: string[] }>;
+  fileToConcepts: Record<string, { kind: string[]; partOf: string[]; uses: string[] }>;
   docToConcepts: Record<string, string[]>;
 };
 
@@ -23,7 +23,11 @@ export const graph = (a: Analysis): Graph => {
 
   for (const { path, annotation } of a.files) {
     if (!annotation) continue;
-    fileToConcepts[path] = { partOf: annotation.partOf, uses: annotation.uses };
+    fileToConcepts[path] = {
+      kind: annotation.kind,
+      partOf: annotation.partOf,
+      uses: annotation.uses,
+    };
     for (const concept of annotation.partOf) push(conceptToFiles, concept, path);
     for (const concept of annotation.uses) push(usesConsumers, concept, path);
   }

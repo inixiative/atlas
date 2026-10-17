@@ -85,6 +85,9 @@ atlas coverage    # unannotated files; @uses curation buckets; unresolved member
 atlas generate    # write MAP.md from the annotated tree
 atlas report      # coverage gaps + concept graph → COVERAGE.md (Mermaid) and atlas.html (Cytoscape)
 atlas stamp [dir] # write/refresh @atlas blocks from the rules (the patcher; dry-run by default)
+atlas hook read   # Claude Code PostToolUse hook: the concept neighbourhood of the file just read
+atlas hook grep   # Claude Code PostToolUse hook: the concepts a grep pattern names
+atlas setup       # offer to add both hooks to .claude/settings.json (--yes: no prompt)
 ```
 
 Common flags: `--root <dir>`, `--json`, `generate --stdout`, `stamp --write`, `stamp --overwrite`,
@@ -107,6 +110,79 @@ that touches caching" in **one** `graph --json` call, and learns a file's role/e
 before opening it. In an A/B test on a repo with a transitive dependency, agents given this line
 used `atlas graph` and solved a "what reaches redis (directly or transitively)" question in ~2 tool
 calls; agents left to `grep` took 2–3× as many and risk missing the transitive edge entirely.
+
+### Hooks: the neighbourhood on every Read and Grep
+
+The map only helps if the agent looks at it. `atlas hook read` and `atlas hook grep` put it in
+front of the agent without asking: when it reads a file, it sees which concepts the file is part
+of, how many sibling files and `@uses` consumers each concept has, and the file's own `@uses`.
+Agents under-weight small primitives because they can't see how much relies on them; the
+consumer count is that reach, stated as a fact.
+
+```
+atlas neighbourhood of src/test/factories/userFactory.ts:
+
+factory, 1 of 2 factories in primitive:testFactories
+
+primitive:testFactories — 2 other file(s), 1 consumer(s) via @uses; `bunx atlas query --partOf primitive:testFactories` lists all
+  src/test/factories/buildFactory.ts
+  src/test/factories/organizationFactory.ts
+
+@uses feature:users — load-bearing dependencies; `bunx atlas query --partOf <concept>` shows what implements each
+```
+
+A file of `@kind factory` or `@kind constructor` also gets a line counting that kind in its
+concept (`REACH_KINDS`). On Grep, the pattern's longest identifier is matched against concept
+names and the matching concepts' files are listed.
+
+Install them with `atlas setup` (asks first; `atlas setup --yes` for scripts and agents). It
+merges two `PostToolUse` entries into `.claude/settings.json`, leaves every other key and hook as it
+was, and adds nothing on a second run:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun \"$CLAUDE_PROJECT_DIR/node_modules/.bin/atlas\" hook read",
+            "timeout": 20,
+            "statusMessage": "atlas: concept neighbourhood of this file"
+          }
+        ]
+      },
+      {
+        "matcher": "Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun \"$CLAUDE_PROJECT_DIR/node_modules/.bin/atlas\" hook grep",
+            "timeout": 20,
+            "statusMessage": "atlas: concepts matching this pattern"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+How they behave:
+
+- **Silent on failure.** Bad input, no `.atlas/` above the file, an unannotated file: no output,
+  exit 0. Set `ATLAS_HOOK_DEBUG=1` to see errors on stderr.
+- **The owning `.atlas/` is the one above the file**, so a file in a worktree maps against that
+  worktree's config even when the session runs from the main checkout.
+- **Cached graph.** The graph is built with atlas's own `analyze` and cached per repo root in the
+  OS temp dir for 10 minutes, keyed by atlas version and rebuilt early when a `.atlas/` file
+  changes.
+- **Harness-agnostic core.** `renderNeighbourhood(graph, relPath)` and
+  `renderConceptMatches(graph, pattern)` return plain text; `runClaudeCodeHook` is the Claude Code
+  adapter (stdin JSON in, `hookSpecificOutput.additionalContext` out). Another harness needs only
+  its own adapter.
 
 ## Visualize
 
