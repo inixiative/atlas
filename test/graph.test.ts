@@ -24,6 +24,7 @@ describe('graph', () => {
   test('indexes file → its concepts', async () => {
     const g = graph(await analyze(MINI));
     expect(g.fileToConcepts[SERVICE]).toEqual({
+      kind: ['service'],
       partOf: ['feature:billing'],
       uses: ['infrastructure:redis'],
     });

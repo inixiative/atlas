@@ -6,7 +6,9 @@ import { generate } from './commands/generate.ts';
 import { graph } from './commands/graph.ts';
 import { flagsToRule, type QueryRule, queryFiles, toQueryRecords } from './commands/query.ts';
 import { buildConceptGraph, buildCoverageReport } from './commands/report.ts';
+import { CLAUDE_SETTINGS, type SetupReport, setupClaudeHooks } from './commands/setup.ts';
 import { inScope, runStamp } from './commands/stamp.ts';
+import { HOOK_EVENTS, type HookEvent, runClaudeCodeHook } from './hook/claudeCode.ts';
 import { renderCoverageHtml } from './render/html.ts';
 import { renderCoverageMarkdown } from './render/markdown.ts';
 
@@ -25,6 +27,11 @@ Commands:
   query [predicate]     find files by axis — flags (--kind/--partOf/--uses/--path) and/or a
                         json-rules predicate (the same AST used for authz/filtering)
   stamp [target]        write/refresh @atlas blocks from the config rules (the patcher)
+  hook read|grep        Claude Code PostToolUse hook: reads the hook JSON on stdin and prints
+                        the concept neighbourhood (read) or matching concepts (grep) as
+                        additionalContext; silent on any failure
+  setup                 offer to add the read/grep hooks to .claude/settings.json (merges,
+                        never duplicates); --yes adds them without asking
 
 Flags:
   --root <dir>          repo root to operate on (default: cwd)
@@ -40,6 +47,7 @@ Flags:
   --write               persist changes (stamp; default is a dry-run)
   --overwrite           resync derivable @kind/@partOf, preserving curated @uses (stamp)
   --kind/--partOf/--uses/--path <v>   axis filters (query; AND together, combine with a predicate)
+  --yes                 accept setup's offer without prompting (non-interactive)
   --version             print version
   --help                this help`;
 
@@ -77,9 +85,17 @@ const version = async (): Promise<string> => {
   return pkg.version ?? pkg.default?.version ?? '0.0.0';
 };
 
+export type CliEnv = {
+  cwd: string;
+  // the hook's input; read lazily so no other command blocks on stdin
+  stdin?: () => Promise<string>;
+  // setup's offer; absent = non-interactive (only --yes writes)
+  confirm?: (question: string) => Promise<boolean>;
+};
+
 export const runCli = async (
   argv: string[],
-  env: { cwd: string },
+  env: CliEnv,
 ): Promise<{ code: number; out: string }> => {
   const out: string[] = [];
   const log = (s = ''): void => void out.push(s);
@@ -97,7 +113,7 @@ export const runCli = async (
   // Error boundary: any thrown error (bad config, IO, corrupt baseline) becomes a
   // clean one-line message + exit 1, never an unhandled rejection / stack trace.
   try {
-    return await dispatch(command, positionals, flags, { root, json, log, done });
+    return await dispatch(command, positionals, flags, { root, json, log, done, env });
   } catch (err) {
     return { code: 1, out: `atlas: ${err instanceof Error ? err.message : String(err)}` };
   }
@@ -108,15 +124,59 @@ type Ctx = {
   json: boolean;
   log: (s?: string) => void;
   done: (code: number) => { code: number; out: string };
+  env: CliEnv;
+};
+
+const logSetup = (log: (s?: string) => void, r: SetupReport, offered: boolean): void => {
+  if (r.status === 'unchanged') log(`✓ ${r.settings} already has the atlas hooks`);
+  else if (r.status === 'dry-run')
+    log(
+      offered
+        ? `skipped: ${r.settings} unchanged`
+        : `would add atlas hook ${r.added.join(', ')} to ${r.settings} — re-run with --yes to write`,
+    );
+  else log(`✓ ${r.status} ${r.settings}: added atlas hook ${r.added.join(', ')}`);
+  for (const n of r.notes) log(`  note: ${n}`);
 };
 
 const dispatch = async (
   command: string,
   positionals: string[],
   flags: Flags,
-  { root, json, log, done }: Ctx,
+  { root, json, log, done, env }: Ctx,
 ): Promise<{ code: number; out: string }> => {
   switch (command) {
+    case 'hook': {
+      const event = positionals[1] as HookEvent | undefined;
+      if (!event || !HOOK_EVENTS.includes(event)) {
+        log(`hook needs an event: ${HOOK_EVENTS.join(' | ')}`);
+        return done(1);
+      }
+      let stdin = '';
+      try {
+        stdin = (await env.stdin?.()) ?? '';
+      } catch {}
+      const output = await runClaudeCodeHook(event, stdin, { version: await version() });
+      if (output) log(output);
+      return done(0);
+    }
+
+    case 'setup': {
+      const plan = setupClaudeHooks(root, { write: false });
+      let report = plan;
+      let offered = false;
+      if (plan.status === 'dry-run') {
+        const question = `Add atlas's PostToolUse hooks (${plan.added.join(', ')}) to ${CLAUDE_SETTINGS}?`;
+        const confirm = flags.yes === true ? undefined : env.confirm;
+        offered = confirm !== undefined;
+        const accepted = flags.yes === true || (confirm !== undefined && (await confirm(question)));
+        if (accepted) report = setupClaudeHooks(root, { write: true });
+      }
+      if (json) log(JSON.stringify(report, null, 2));
+      else logSetup(log, report, offered);
+      return done(0);
+    }
+
     case 'check': {
       const target = positionals[1];
       const warnOnly = flags['warn-only'] === true;
