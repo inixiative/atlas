@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
 
 - **Thesaurus** (`.atlas/thesaurus.ts`, optional), keyed by concept:
   `{ 'primitive:testFactories': { phrases: ['seed a user'], doc: 'TESTING.md#factories' } }`.
