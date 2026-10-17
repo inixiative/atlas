@@ -15,9 +15,11 @@ const HOOKS: Record<HookEvent, { matcher: string; statusMessage: string }> = {
 
 // Runs the repo's own installed atlas (not `bunx atlas`, which would fetch an unrelated
 // npm `atlas` package when this one isn't installed). $CLAUDE_PROJECT_DIR keeps it
-// working when the session's cwd moves into a subdirectory.
+// working when the session's cwd moves into a subdirectory. The existence guard keeps a
+// committed settings.json silent for a teammate who hasn't run `bun install` yet.
+const ATLAS_BIN = '"$CLAUDE_PROJECT_DIR/node_modules/.bin/atlas"';
 export const hookCommandFor = (event: HookEvent): string =>
-  `bun "$CLAUDE_PROJECT_DIR/node_modules/.bin/atlas" hook ${event}`;
+  `[ -e ${ATLAS_BIN} ] && bun ${ATLAS_BIN} hook ${event} || true`;
 
 const hookCommand = (event: HookEvent): HookCommand => ({
   type: 'command',
@@ -69,6 +71,25 @@ const indentOf = (text: string): string | number => {
   return lead.startsWith('\t') ? '\t' : lead.length;
 };
 
+const isObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
+
+// The merge walks hooks.PostToolUse[].hooks[]; refuse a file whose shape would make
+// that walk throw, rather than surfacing a TypeError.
+const settingsShapeError = (settings: ClaudeSettings): string | undefined => {
+  if (settings.hooks === undefined) return undefined;
+  if (!isObject(settings.hooks)) return '"hooks" is not an object';
+  const post: unknown = settings.hooks.PostToolUse;
+  if (post === undefined) return undefined;
+  if (!Array.isArray(post)) return '"hooks.PostToolUse" is not an array';
+  for (const group of post as unknown[]) {
+    if (!isObject(group)) return 'a "hooks.PostToolUse" entry is not an object';
+    if (group.hooks !== undefined && !Array.isArray(group.hooks))
+      return 'a "hooks.PostToolUse" entry has a non-array "hooks"';
+  }
+  return undefined;
+};
+
 export type SetupReport = {
   settings: string;
   status: 'created' | 'updated' | 'unchanged' | 'dry-run';
@@ -89,8 +110,10 @@ export const setupClaudeHooks = (root: string, options: { write: boolean }): Set
       `${CLAUDE_SETTINGS} is not valid JSON (${err instanceof Error ? err.message : String(err)}); not touching it`,
     );
   }
-  if (typeof settings !== 'object' || settings === null || Array.isArray(settings))
+  if (!isObject(settings))
     throw new Error(`${CLAUDE_SETTINGS} is not a JSON object; not touching it`);
+  const shapeError = settingsShapeError(settings);
+  if (shapeError) throw new Error(`${CLAUDE_SETTINGS}: ${shapeError}; not touching it`);
 
   const notes: string[] = [];
   if (!existsSync(join(root, '.atlas')))

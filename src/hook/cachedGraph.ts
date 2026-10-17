@@ -9,7 +9,9 @@ export const GRAPH_CACHE_TTL_MS = 10 * 60 * 1000;
 
 export type CachedGraphOptions = { ttlMs?: number; cacheDir?: string; version?: string };
 
-const defaultCacheDir = (): string => join(tmpdir(), 'atlas-hooks');
+// ATLAS_HOOK_CACHE_DIR moves the cache (tests isolate it; a repo can pin it).
+const defaultCacheDir = (): string =>
+  process.env.ATLAS_HOOK_CACHE_DIR || join(tmpdir(), 'atlas-hooks');
 
 const cachePathFor = (root: string, cacheDir: string, version: string): string =>
   join(

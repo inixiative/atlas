@@ -1,11 +1,21 @@
-import { describe, expect, test } from 'bun:test';
-import { existsSync, readdirSync, statSync, utimesSync } from 'node:fs';
+import { afterAll, describe, expect, test } from 'bun:test';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  utimesSync,
+} from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { analyze } from '../src/analyze.ts';
 import { runCli } from '../src/cli.ts';
 import { graph } from '../src/commands/graph.ts';
+import { hookCommandFor } from '../src/commands/setup.ts';
 import { cachedGraph } from '../src/hook/cachedGraph.ts';
 import { runClaudeCodeHook } from '../src/hook/claudeCode.ts';
 import {
@@ -19,6 +29,12 @@ const FIXTURE = resolve(import.meta.dir, 'fixtures/hooks');
 const USER_FACTORY = 'src/test/factories/userFactory.ts';
 const BUILD_FACTORY = 'src/test/factories/buildFactory.ts';
 const CONTROLLER = 'src/modules/users/userController.ts';
+
+// Paths that don't pass a cacheDir (the CLI, the spawned bin) get an isolated one, so a
+// graph cached by an earlier run never answers for edited fixtures.
+const SHARED_CACHE = mkdtempSync(join(tmpdir(), 'atlas-hook-shared-'));
+process.env.ATLAS_HOOK_CACHE_DIR = SHARED_CACHE;
+afterAll(() => rmSync(SHARED_CACHE, { recursive: true, force: true }));
 
 const withCacheDir = async (fn: (cacheDir: string) => Promise<void>): Promise<void> => {
   const cacheDir = await mkdtemp(join(tmpdir(), 'atlas-hook-cache-'));
@@ -259,18 +275,38 @@ describe('atlas hook (CLI)', () => {
     expect(out).toContain('read | grep');
   });
 
-  test('the real bin reads stdin and writes the hook JSON', () => {
-    const result = Bun.spawnSync(
-      ['bun', resolve(import.meta.dir, '../bin/atlas.ts'), 'hook', 'read'],
-      {
-        stdin: Buffer.from(
-          JSON.stringify({ tool_input: { file_path: join(FIXTURE, USER_FACTORY) } }),
-        ),
-        stdout: 'pipe',
-        stderr: 'pipe',
-      },
-    );
-    expect(result.exitCode).toBe(0);
-    expect(contextOf(result.stdout.toString().trim())).toContain('primitive:testFactories');
+  test('the installed command setup writes runs through a .bin symlink, silent when absent', () => {
+    const project = mkdtempSync(join(tmpdir(), 'atlas-hook-project-'));
+    try {
+      const run = () =>
+        Bun.spawnSync(['sh', '-c', hookCommandFor('read')], {
+          stdin: Buffer.from(
+            JSON.stringify({ tool_input: { file_path: join(FIXTURE, USER_FACTORY) } }),
+          ),
+          stdout: 'pipe',
+          stderr: 'pipe',
+          env: {
+            ...process.env,
+            CLAUDE_PROJECT_DIR: project,
+            PATH: `${dirname(process.execPath)}:${process.env.PATH ?? ''}`,
+          },
+        });
+
+      const absent = run();
+      expect(absent.exitCode).toBe(0);
+      expect(absent.stdout.toString()).toBe('');
+      expect(absent.stderr.toString()).toBe('');
+
+      mkdirSync(join(project, 'node_modules/.bin'), { recursive: true });
+      symlinkSync(
+        resolve(import.meta.dir, '../bin/atlas.ts'),
+        join(project, 'node_modules/.bin/atlas'),
+      );
+      const present = run();
+      expect(present.exitCode).toBe(0);
+      expect(contextOf(present.stdout.toString().trim())).toContain('primitive:testFactories');
+    } finally {
+      rmSync(project, { recursive: true, force: true });
+    }
   });
 });

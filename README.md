@@ -148,7 +148,7 @@ was, and adds nothing on a second run:
         "hooks": [
           {
             "type": "command",
-            "command": "bun \"$CLAUDE_PROJECT_DIR/node_modules/.bin/atlas\" hook read",
+            "command": "[ -e \"$CLAUDE_PROJECT_DIR/node_modules/.bin/atlas\" ] && bun \"$CLAUDE_PROJECT_DIR/node_modules/.bin/atlas\" hook read || true",
             "timeout": 20,
             "statusMessage": "atlas: concept neighbourhood of this file"
           }
@@ -159,7 +159,7 @@ was, and adds nothing on a second run:
         "hooks": [
           {
             "type": "command",
-            "command": "bun \"$CLAUDE_PROJECT_DIR/node_modules/.bin/atlas\" hook grep",
+            "command": "[ -e \"$CLAUDE_PROJECT_DIR/node_modules/.bin/atlas\" ] && bun \"$CLAUDE_PROJECT_DIR/node_modules/.bin/atlas\" hook grep || true",
             "timeout": 20,
             "statusMessage": "atlas: concepts matching this pattern"
           }
@@ -172,8 +172,8 @@ was, and adds nothing on a second run:
 
 How they behave:
 
-- **Silent on failure.** Bad input, no `.atlas/` above the file, an unannotated file: no output,
-  exit 0. Set `ATLAS_HOOK_DEBUG=1` to see errors on stderr.
+- **Silent on failure.** Bad input, no `.atlas/` above the file, an unannotated file, atlas not
+  installed yet (the command checks for the binary first): no output, exit 0. Set `ATLAS_HOOK_DEBUG=1` to see errors on stderr.
 - **The owning `.atlas/` is the one above the file**, so a file in a worktree maps against that
   worktree's config even when the session runs from the main checkout.
 - **Cached graph.** The graph is built with atlas's own `analyze` and cached per repo root in the

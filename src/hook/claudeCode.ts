@@ -20,7 +20,7 @@ export const toAdditionalContext = (text: string): string => {
   if (trimmed === '') return '';
   const body =
     trimmed.length > MAX_CHARS
-      ? `${trimmed.slice(0, MAX_CHARS)}\n… (truncated; run the command above for the rest)`
+      ? `${trimmed.slice(0, MAX_CHARS)}\n… (truncated; bunx atlas query --partOf <concept> lists the rest)`
       : trimmed;
   return JSON.stringify({
     suppressOutput: true,

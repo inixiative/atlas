@@ -130,6 +130,21 @@ describe('setupClaudeHooks', () => {
     });
   });
 
+  test('a settings shape the merge cannot walk is refused with a clear message', async () => {
+    await withRepo((root) => {
+      for (const bad of [
+        { hooks: 'x' },
+        { hooks: { PostToolUse: {} } },
+        { hooks: { PostToolUse: [null] } },
+        { hooks: { PostToolUse: [{ matcher: 'Read', hooks: 'x' }] } },
+      ]) {
+        writeSettings(root, JSON.stringify(bad));
+        expect(() => setupClaudeHooks(root, { write: true })).toThrow('not touching it');
+        expect(readFileSync(settingsPath(root), 'utf8')).toBe(JSON.stringify(bad));
+      }
+    });
+  });
+
   test('notes a missing .atlas/ and the hand-copied gloss/atlas hooks', async () => {
     const root = await mkdtemp(join(tmpdir(), 'atlas-setup-'));
     try {
