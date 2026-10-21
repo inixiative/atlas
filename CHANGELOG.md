@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+
+- `atlas generate`: a concept's kind breakdown counts `constructor` correctly. The counts lived in
+  a plain object, so `counts.constructor` started as `Object`'s constructor and MAP.md printed
+  `constructor(function Object() { [native code] }11)`.
+
 ## 0.4.0
 
 - **Thesaurus** (`.atlas/thesaurus.ts`, optional), keyed by concept:

@@ -38,12 +38,12 @@ export const generate = (a: Analysis): string => {
       }
 
       const members = g.conceptToFiles[concept] ?? [];
-      const counts: Record<string, number> = {};
+      const counts = new Map<string, number>();
       for (const file of members)
-        for (const k of fileKinds[file] ?? []) counts[k] = (counts[k] ?? 0) + 1;
-      const breakdown = Object.keys(counts)
+        for (const k of fileKinds[file] ?? []) counts.set(k, (counts.get(k) ?? 0) + 1);
+      const breakdown = [...counts.keys()]
         .sort()
-        .map((k) => `${k}(${counts[k]})`)
+        .map((k) => `${k}(${counts.get(k)})`)
         .join(', ');
       lines.push(`- files (${members.length})${breakdown ? `: ${breakdown}` : ''}`);
       for (const file of members) lines.push(`  - ${file} — ${(fileKinds[file] ?? []).join(', ')}`);

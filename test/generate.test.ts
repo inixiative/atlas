@@ -4,6 +4,7 @@ import { analyze } from '../src/analyze.ts';
 import { generate } from '../src/commands/generate.ts';
 
 const MINI = resolve(import.meta.dir, 'fixtures/mini');
+const HOOKS = resolve(import.meta.dir, 'fixtures/hooks');
 
 describe('generate (MAP.md)', () => {
   test('groups concepts by class with file lists and a kind breakdown', async () => {
@@ -21,6 +22,12 @@ describe('generate (MAP.md)', () => {
     const map = generate(await analyze(MINI));
     const redisSection = map.slice(map.indexOf('### infrastructure:redis'));
     expect(redisSection).toContain('src/modules/billing/services/charge.ts');
+  });
+
+  test('counts a kind that shares a name with an Object.prototype key', async () => {
+    const map = generate(await analyze(HOOKS));
+    expect(map).toContain('constructor(1)');
+    expect(map).not.toContain('[native code]');
   });
 
   test('is deterministic — identical input yields byte-identical output', async () => {
