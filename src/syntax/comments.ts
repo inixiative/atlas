@@ -214,8 +214,13 @@ const isDockerfile = (name: string): boolean =>
 const PREAMBLES: Preamble[] = [
   // `#!` but not Rust's `#![attribute]`
   { applies: anyFile, pattern: /^#!(?!\[)[^\n]*(?:\n|$)/ },
-  // Emacs file variables (`-*- lexical-binding: t -*-`) only count on the first line
-  { applies: anyFile, pattern: /^[^\n]*-\*-[^\n]*-\*-[^\n]*(?:\n|$)/ },
+  // Emacs file variables (`-*- lexical-binding: t -*-`) only count on the first line. Only a
+  // line that is whole on its own: `/* -*- mode: c -*-` opening a longer comment is not skipped,
+  // or the block would land inside that comment.
+  {
+    applies: anyFile,
+    pattern: /^(?![^\n]*(?:\/\*|<!--)(?![^\n]*(?:\*\/|-->)))[^\n]*-\*-[^\n]*-\*-[^\n]*(?:\n|$)/,
+  },
   // Python's and Ruby's encoding line must be the first or second line
   {
     applies: withExtension('.py', '.pyi', '.rb'),

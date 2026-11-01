@@ -27,8 +27,8 @@ const bindSelfImports = (): void => {
         loader: 'ts',
         contents: (await Bun.file(path).text()).replace(
           ATLAS_IMPORT,
-          (_, keyword: string, _quote, specifier: string) =>
-            `${keyword}${JSON.stringify(SELF[specifier])}`,
+          (_, keyword: string, quote: string, specifier: string) =>
+            `${keyword}${quote}${SELF[specifier]}${quote}`,
         ),
       }));
     },

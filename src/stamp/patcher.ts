@@ -1,7 +1,7 @@
 import {
   type AtlasAnnotation,
   locateAtlasBlock,
-  MENTIONS_ATLAS,
+  mentionsAtlas,
   parseAtlasBlock,
   type UsesState,
 } from '../parse/parseAtlasBlock.ts';
@@ -84,7 +84,7 @@ export const applyStamp = (
     };
     const hasAny = [spec.kind, spec.partOf, spec.constructs].some((v) => v && v.length);
     if (!hasAny) return { content: source, changed: false };
-    if (MENTIONS_ATLAS.test(source))
+    if (mentionsAtlas(source, style))
       return { content: source, changed: false, skipped: 'unreadable' };
     const at = preambleEnd(file.path, source);
     const head = source.slice(0, at);

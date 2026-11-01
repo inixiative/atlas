@@ -10,7 +10,13 @@ export const ALWAYS_IGNORE = ['**/node_modules/**', '**/.git/**', '**/dist/**', 
 const git = async (root: string, args: string[]) => {
   let proc: ReturnType<typeof Bun.spawn>;
   try {
-    proc = Bun.spawn(['git', ...args], { cwd: root, stdout: 'pipe', stderr: 'pipe' });
+    // LC_ALL=C: git's messages are read below, and a translated git words them differently
+    proc = Bun.spawn(['git', ...args], {
+      cwd: root,
+      stdout: 'pipe',
+      stderr: 'pipe',
+      env: { ...process.env, LC_ALL: 'C' },
+    });
   } catch {
     throw new Error('atlas lists files with git, and git is not installed');
   }

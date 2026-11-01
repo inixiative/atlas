@@ -105,10 +105,20 @@ const locateInLines = (source: string, style: LineStyle): LocatedBlock | null =>
   return start < 0 ? null : { start, end, text: source.slice(start, end) };
 };
 
-// A comment that names `@atlas` in any style. When a file has one but no block parses (collapsed
-// onto one line, mangled by hand), the stamper must not add a second block.
-export const MENTIONS_ATLAS =
-  /(?:\/\*+|<!--|\{\/\*|#+|-{2,}|;+|\/{2,}|\.\.)[ \t]*\*?[ \t]*@atlas\b/;
+// Does a comment in the file's own style name `@atlas`? When one does but no block parses from
+// it (collapsed onto one line, mangled by hand), the stamper must not add a second block.
+const NAMES_ATLAS = /(?:^|[\s*])@atlas\b/;
+export const mentionsAtlas = (source: string, style: CommentStyle): boolean => {
+  if (style.shape === 'line') {
+    const comment = lineComment(style);
+    return source.split('\n').some((line) => NAMES_ATLAS.test(comment.exec(line)?.[1] ?? ''));
+  }
+  const comment = new RegExp(
+    `${escapeRegex(style.open)}[\\s\\S]*?${escapeRegex(style.close)}`,
+    'g',
+  );
+  return [...source.matchAll(comment)].some((m) => NAMES_ATLAS.test(m[0].slice(style.open.length)));
+};
 
 // Locate the first comment that opens with `@atlas`, in the file's comment style, returning its
 // text and character span so the patcher can splice a regenerated block in place.

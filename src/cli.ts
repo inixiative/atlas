@@ -417,7 +417,7 @@ const dispatch = async (
           log(`⚠ ${skipped.length} file(s) left without a block — write it by hand:`);
           for (const s of skipped)
             log(
-              `  ${s.file}: ${s.reason === 'unreadable' ? 'has an @atlas comment atlas cannot read (collapsed onto one line?)' : 'no place for a block (a PHP file must open with <?php)'}`,
+              `  ${s.file}: ${s.reason === 'unreadable' ? 'has a comment naming @atlas that is not a readable block (collapsed onto one line, or an example in a comment)' : 'no place for a block (a PHP file must open with <?php)'}`,
             );
         }
       }

@@ -18,7 +18,8 @@ Atlas works on any repo: any language, docs and plain files included.
   matter, an XML prolog, `<?php` or CSS `@charset`. The C family writes plain `/* */` (`/**` is a
   doc comment in Rust, C#, Dart, Java and Go); JS/TS keep `/**`. Go and reST get a blank line
   after the block. A PHP file that starts as HTML gets none. A file with an unreadable `@atlas`
-  comment never gets a second block; `stamp` reports both cases (`skipped`).
+  comment never gets a second block; `stamp` reports both cases (`skipped`). An existing `/**`
+  block in a non-JS C-family file is rewritten to `/*` on its next stamp.
 - **Files with no comment syntax** (`.json`, `.txt`, images) are tagged by the stamp rules that
   match their path, never edited. `FileRecord.tagging` is `inline` or `path`; `coverage` lists them
   as `pathTagged`; `check` says "no comment style for this file and no stamp rule tags its path".

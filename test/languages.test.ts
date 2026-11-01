@@ -211,6 +211,23 @@ describe('placement rules', () => {
     });
   });
 
+  test('an Emacs first line that opens a longer comment is not skipped (the block would split it)', () => {
+    const c = '/* -*- mode: c -*-\n * Copyright\n */\nint x;\n';
+    expect(applyStamp(c, tags, at('a.c')).content).toBe(
+      `/*\n * @atlas\n * @kind service\n * @partOf feature:billing\n */\n${c}`,
+    );
+    const whole = '/* -*- mode: c -*- */\nint x;\n';
+    expect(
+      applyStamp(whole, tags, at('a.c')).content.startsWith('/* -*- mode: c -*- */\n/*\n'),
+    ).toBe(true);
+  });
+
+  test("only the file's own comment style can block a stamp", () => {
+    const md = '# @atlas guide\n\nUse `# @atlas` lines in Python.\n';
+    expect(applyStamp(md, tags, at('a.md')).changed).toBe(true);
+    expect(applyStamp('<!-- see @atlas below -->\n', tags, at('a.md')).skipped).toBe('unreadable');
+  });
+
   test('a preamble that ends the file without a newline stays first', () => {
     expect(applyStamp('#!/bin/sh', tags, at('a.sh')).content).toBe(
       '#!/bin/sh\n# @atlas\n# @kind service\n# @partOf feature:billing\n',
@@ -521,7 +538,7 @@ describe('a mixed-language repo', () => {
     await withRepo(
       {
         '.atlas/config.ts': `import { kinds } from './lib/kinds.ts';\nexport default { include: ['a.py'], stamp: [{ include: 'a.py', kind: kinds }] };\n`,
-        '.atlas/lib/kinds.ts': `import { DEFAULT_KINDS } from '@inixiative/atlas';\nexport const kinds = DEFAULT_KINDS.includes('service') ? 'service' : 'none';\n`,
+        '.atlas/lib/kinds.ts': `import { DEFAULT_KINDS } from '@inixiative/atlas';\nexport const kinds = DEFAULT_KINDS.includes('service') ? 'service' : 'none';\n// a string holding an import keeps its own quotes\nexport const NOTE = "import '@inixiative/atlas'";\n`,
         '.atlas/thesaurus.ts': `export const THESAURUS = {};\nexport const NAME = '@inixiative/atlas';\n`,
         'a.py': 'x = 1\n',
       },
