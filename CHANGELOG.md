@@ -10,43 +10,44 @@ Atlas works on any repo: any language, docs and plain files included.
   the walker and the hooks all read it; matching ignores case. A repo adds files with
   `comments: { hash: ['.nix', 'Tiltfile'] }` in `.atlas/config.ts`; an unknown style is refused.
 - **Line-comment blocks** are the `@atlas` line plus the `@kind`/`@partOf`/`@uses`/`@constructs`
-  lines after it, so a neighbouring doc tag (`---@class`, `# @deprecated`) is never absorbed (repeated prefixes
-  like `;;`, `##`, `---` read as one; an empty comment line between axes is bridged); the first
-  other line ends the block, so neighbouring prose is never rewritten. A one-line block holding
-  only `@atlas` is filled in place.
+  lines after it, so a neighbouring doc tag (`---@class`, `# @deprecated`) is never absorbed
+  (repeated prefixes like `;;`, `##`, `---` read as one; an empty comment line between axes is
+  bridged); the first other line ends the block, so neighbouring prose is never rewritten. A
+  one-line block holding only `@atlas` is filled in place.
 - **The stamper** writes the block in the file's style, below a shebang (not `#![`), an Emacs
   `-*- -*-` line, Python's or Ruby's encoding line, Go build constraints, Dockerfile parser
-  directives, Markdown front
-  matter, an XML prolog, `<?php` or CSS `@charset`. The C family writes plain `/* */` (`/**` is a
-  doc comment in Rust, C#, Dart, Java and Go); JS/TS keep `/**`. Go and reST get a blank line
-  after the block. A PHP file that starts as HTML gets none. A file with an unreadable `@atlas`
-  comment never gets a second block; `stamp` reports both cases (`skipped`). An existing `/**`
-  block in a non-JS C-family file is rewritten to `/*` on its next stamp. A UTF-8 byte-order mark
-  is kept.
+  directives, Markdown front matter, an XML prolog, `<?php` or CSS `@charset`. The C family writes
+  plain `/* */` (`/**` is a doc comment in Rust, C#, Dart, Java and Go); JS/TS keep `/**`. Go and
+  reST get a blank line after the block. A PHP file that starts as HTML gets none. A file with an
+  unreadable `@atlas` comment never gets a second block; `stamp` reports both cases (`skipped`).
+  An existing `/**` block in a non-JS C-family file is rewritten to `/*` on its next stamp. A
+  UTF-8 byte-order mark is kept.
 - **Files with no comment syntax** (`.json`, `.txt`, images) are tagged by the stamp rules that
-  match their path, never edited. `FileRecord.tagging` is `inline` or `path`; `coverage` lists them
-  as `pathTagged`; `check` says "no comment style for this file and no stamp rule tags its path".
+  match their path, never edited. `FileRecord.tagging` is `inline` or `path`; `coverage` lists
+  them as `pathTagged`; `check` says "no comment style for this file and no stamp rule tags its
+  path".
 - **Walking.** `include` unset now means every file in a known comment style plus every file a
   rule tags. Files come from `git ls-files` (tracked, and untracked files not in `.gitignore`), so
-  generated output and nested worktrees stay out, and `node_modules` is never scanned: `graph`
-  on a repo of 19,000 tracked files (3,800 mapped) went from 4.2 s to 1.0 s (median of 5 warm
-  runs, same machine). Outside a git work tree, or at a root the enclosing repo ignores, every file is listed; any other git
-  failure is an error, and a missing `--root` says so. Dot-directories are walked (`.github/`,
-  `.claude/`); `.git`, `.atlas` (at any depth), `node_modules`, `dist`, submodules and symlinks
-  never are, nor atlas's own outputs (`MAP.md` at the root, `COVERAGE.md` and `atlas.html` at any
-  depth) or `pnpm-lock.yaml`.
-  A binary (NUL bytes and not valid UTF-8), UTF-32 or BOM-less UTF-16 file with a source extension is
-  skipped; valid UTF-8 holding a stray NUL is read (a file over a tenth NUL bytes reads
-  as BOM-less UTF-16 and is skipped). A UTF-16 file with a BOM is read,
-  and a stamped file is written back in its own encoding (UTF-8, UTF-8 with a BOM, UTF-16); a
-  file whose bytes aren't valid in its encoding (Windows-1252) is never stamped (`skipped`).
+  generated output and nested worktrees stay out, and `node_modules` is never scanned: `graph` on
+  a repo of 19,000 tracked files (3,800 mapped) went from 4.2 s to 1.0 s (median of 5 warm runs,
+  same machine). Outside a git work tree, or at a root the enclosing repo ignores, every file is
+  listed; any other git failure is an error, and a missing `--root` says so. Dot-directories are
+  walked (`.github/`, `.claude/`); `.git`, `.atlas` (at any depth), `node_modules`, `dist`,
+  submodules and symlinks never are, nor atlas's own outputs (`MAP.md` at the root, `COVERAGE.md`
+  and `atlas.html` at any depth) or `pnpm-lock.yaml`. A binary (NUL bytes and not valid UTF-8),
+  UTF-32 or BOM-less UTF-16 file with a source extension is skipped; valid UTF-8 holding a stray
+  NUL is read (a file over a tenth NUL bytes reads as BOM-less UTF-16 and is skipped). A UTF-16
+  file with a BOM is read, and a stamped file is written back in its own encoding (UTF-8, UTF-8
+  with a BOM, UTF-16); a file whose bytes aren't valid in its encoding (Windows-1252) is never
+  stamped (`skipped`).
 - **Targets.** `check` and `stamp` take any number of files or folders (`./src`, `src/`, `.`,
-  absolute paths), resolved against the repo root in their on-disk spelling; one that doesn't exist
-  or lies outside it is an error (`atlas stamp all` now fails: write `atlas stamp`). The CI examples check exactly the changed files (one atlas run, or several when xargs
-  splits a very long list), and fail when git fails rather than checking nothing.
+  absolute paths), resolved against the repo root in their on-disk spelling; one that doesn't
+  exist or lies outside it is an error (`atlas stamp all` now fails: write `atlas stamp`). The CI
+  examples check exactly the changed files (one atlas run, or several when xargs splits a very
+  long list), and fail when git fails rather than checking nothing.
 - **`atlas init`** detects the repo's languages (include globs spelled as the files are, e.g.
-  `**/*.R`) and writes `.atlas/config.ts` (an include list for
-  them), `kinds.ts` and `concepts.ts` (no concepts) from `examples/atlas-config/`.
+  `**/*.R`) and writes `.atlas/config.ts` (an include list for them), `kinds.ts` and `concepts.ts`
+  (no concepts) from `examples/atlas-config/`.
 - **No install needed.** Imports of `@inixiative/atlas` in any `.atlas/**/*.ts` file are bound to
   the running atlas, so `bunx @inixiative/atlas …` works in a repo with no `package.json`.
   `atlas setup` writes `bunx @inixiative/atlas@<version> hook …` there, and the installed binary
@@ -55,9 +56,10 @@ Atlas works on any repo: any language, docs and plain files included.
 - Hook and docs hints say `bunx @inixiative/atlas`, not `bunx atlas` (an unrelated npm package).
 - Breaking (no shims): `parseAtlasBlock(source, style)`, `locateAtlasBlock(source, style)`,
   `renderBlock(spec, style)`, `applyStamp(source, resolved, { path, style }, mode)`,
-  `walkFiles(root, ignore, keep)`; `StampResult.skipped`, `SetupReport.refreshed`; `LoadedConfig.include` is `string[] | null` and gains `comments`;
-  `DEFAULT_INCLUDE` is gone. A block comment still needs `@atlas` on its own line, so a block a
-  formatter collapsed onto one line is still reported as missing.
+  `walkFiles(root, ignore, keep)`; `StampResult.skipped`, `SetupReport.refreshed`;
+  `LoadedConfig.include` is `string[] | null` and gains `comments`; `DEFAULT_INCLUDE` is gone. A
+  block comment still needs `@atlas` on its own line, so a block a formatter collapsed onto one
+  line is still reported as missing.
 
 ## 0.4.1
 
