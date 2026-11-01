@@ -15,13 +15,16 @@ export type StampResult = { changes: StampChange[]; unresolved: Unresolved[]; sk
 
 const IO_CONCURRENCY = 64;
 
-// A file is in scope when no target is given, when the target IS the file, or
-// when the target is a folder the file lives under. (all / folder / individual)
-export const inScope = (path: string, target?: string): boolean => {
-  if (!target) return true;
-  if (path === target) return true;
-  const folder = target.endsWith('/') ? target : `${target}/`;
-  return path.startsWith(folder);
+// A file is in scope when no target is given, when a target IS the file, or when a target is a
+// folder the file lives under. Targets are repo-relative and may be written `./src`, `src/` or
+// `.` (the whole repo), as a shell or `dirname` produces them.
+export const inScope = (path: string, targets: string[] = []): boolean => {
+  if (targets.length === 0) return true;
+  return targets.some((raw) => {
+    const target = raw.replace(/^(?:\.\/)+/, '').replace(/\/+$/, '');
+    if (target === '' || target === '.') return true;
+    return path === target || path.startsWith(`${target}/`);
+  });
 };
 
 // Pure: what stamping a file WOULD do, or null if it's already up to date.
@@ -42,10 +45,10 @@ export const planStamp = (
   files: { path: string; style: CommentStyle; source: string }[],
   config: LoadedConfig,
   mode: StampMode,
-  target?: string,
+  targets: string[] = [],
 ): StampChange[] =>
   files
-    .filter((f) => inScope(f.path, target))
+    .filter((f) => inScope(f.path, targets))
     .map((f) => computeStamp(f, f.source, config, mode))
     .filter((c): c is StampChange => c !== null);
 
@@ -56,24 +59,31 @@ export const planStamp = (
 // to no concept — leaving a file under-stamped — is visible at write time.
 export const runStamp = async (
   root: string,
-  opts: { mode: StampMode; target?: string; write: boolean },
+  opts: { mode: StampMode; targets?: string[]; write: boolean },
 ): Promise<StampResult> => {
   const config = await loadConfig(root);
-  const scoped = (await consideredFiles(root, config)).filter((f) => inScope(f.path, opts.target));
+  const scoped = (await consideredFiles(root, config)).filter((f) => inScope(f.path, opts.targets));
   // A file with no comment style is tagged by its path; there is nothing to write into it.
   const read = await mapLimit(scoped, IO_CONCURRENCY, async ({ path, style }) => {
     if (!style) return null;
     const read = await readText(root, path);
-    return read === null ? null : { path, style, source: read.text, encoding: read.encoding };
+    return read === null
+      ? null
+      : { path, style, source: read.text, encoding: read.encoding, exact: read.exact };
   });
   const files = read.filter((f) => f !== null);
 
   const changes: StampChange[] = [];
   const skipped: Skipped[] = [];
+  // the rules' result for each file, used for the stamp and for the unresolved report
+  const rules = new Map(
+    scoped.map(({ path }) => [path, stampFor(path, config.stamp, config.concepts)] as const),
+  );
   for (const file of files) {
-    const resolved = stampFor(file.path, config.stamp, config.concepts);
+    const resolved = rules.get(file.path) ?? stampFor(file.path, config.stamp, config.concepts);
     const result = applyStamp(file.source, resolved, file, opts.mode);
-    if (result.changed)
+    if (result.changed && !file.exact) skipped.push({ file: file.path, reason: 'encoding' });
+    else if (result.changed)
       changes.push({
         path: file.path,
         before: file.source,
@@ -83,8 +93,8 @@ export const runStamp = async (
     else if (result.skipped) skipped.push({ file: file.path, reason: result.skipped });
   }
   const unresolved: Unresolved[] = [];
-  for (const { path } of scoped) {
-    for (const u of stampFor(path, config.stamp, config.concepts).unresolved) {
+  for (const [path, stamp] of rules) {
+    for (const u of stamp.unresolved) {
       unresolved.push({ file: path, category: u.category, value: u.value });
     }
   }

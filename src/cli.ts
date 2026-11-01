@@ -12,24 +12,26 @@ import { inScope, runStamp } from './commands/stamp.ts';
 import { HOOK_EVENTS, type HookEvent, runClaudeCodeHook } from './hook/claudeCode.ts';
 import { renderCoverageHtml } from './render/html.ts';
 import { renderCoverageMarkdown } from './render/markdown.ts';
+import type { StampSkip } from './stamp/patcher.ts';
 
 const HELP = `atlas — the map of the codebase
 
-Usage: atlas <command> [target] [flags]
+Usage: atlas <command> [targets…] [flags]
 
 Commands:
   init                  start a .atlas/ here: config.ts with an include list for the languages
                         found, kinds.ts, and an empty concepts.ts
   graph                 reverse indexes: concept → files, file → concepts, doc → concepts
-  check [target]        presence + vocab + reference + thesaurus existence (the CI command);
-                        a target scopes to a path and skips registry-wide reference checks
+  check [targets…]      presence + vocab + reference + thesaurus existence (the CI command);
+                        targets (files or folders; . is all) scope it and skip the
+                        registry-wide reference checks
   coverage              unannotated files; @uses curation buckets; unresolved memberships
                         gate with --min <pct> and/or --ratchet (vs a committed baseline)
   generate              write MAP.md from the annotated tree
   report                coverage gaps + concept graph → COVERAGE.md (Mermaid) and atlas.html (Cytoscape)
   query [predicate]     find files by axis — flags (--kind/--partOf/--uses/--path) and/or a
                         json-rules predicate (the same AST used for authz/filtering)
-  stamp [target]        write/refresh @atlas blocks from the config rules (the patcher)
+  stamp [targets…]      write/refresh @atlas blocks from the config rules (the patcher)
   hook read|grep        Claude Code PostToolUse hook: reads the hook JSON on stdin and prints
                         the concept neighbourhood (read) or matching concepts (grep) as
                         additionalContext; silent on any failure
@@ -55,6 +57,14 @@ Flags:
   --help                this help`;
 
 type Flags = Record<string, string | boolean>;
+
+const SKIP_REASONS: Record<StampSkip, string> = {
+  unreadable:
+    'has a comment naming @atlas that is not a readable block (collapsed onto one line, or an example in a comment)',
+  'no-place': 'no place for a block (a PHP file must open with <?php)',
+  encoding:
+    'not valid in its encoding (e.g. Windows-1252); stamping would corrupt it — convert it to UTF-8 first',
+};
 
 // Flags that consume the next token as a value; everything else is boolean.
 const VALUE_FLAGS = new Set(['root', 'min', 'baseline', 'out', 'kind', 'partOf', 'uses', 'path']);
@@ -207,13 +217,13 @@ const dispatch = async (
     }
 
     case 'check': {
-      const target = positionals[1];
+      const targets = positionals.slice(1);
       const warnOnly = flags['warn-only'] === true;
       const full = await analyze(root);
-      const scoped = target
-        ? { ...full, files: full.files.filter((f) => inScope(f.path, target)) }
+      const scoped = targets.length
+        ? { ...full, files: full.files.filter((f) => inScope(f.path, targets)) }
         : full;
-      const result = await runCheck(scoped, { references: target === undefined });
+      const result = await runCheck(scoped, { references: targets.length === 0 });
 
       if (json) log(JSON.stringify({ ...result, warnOnly }, null, 2));
       else if (result.ok) log('✓ atlas check passed');
@@ -386,7 +396,7 @@ const dispatch = async (
       const write = flags.write === true;
       const { changes, unresolved, skipped } = await runStamp(root, {
         mode,
-        target: positionals[1],
+        targets: positionals.slice(1),
         write,
       });
       if (json) {
@@ -414,11 +424,8 @@ const dispatch = async (
           for (const u of unresolved) log(`  ${u.file}: ${u.category}:${u.value}`);
         }
         if (skipped.length) {
-          log(`⚠ ${skipped.length} file(s) left without a block — write it by hand:`);
-          for (const s of skipped)
-            log(
-              `  ${s.file}: ${s.reason === 'unreadable' ? 'has a comment naming @atlas that is not a readable block (collapsed onto one line, or an example in a comment)' : 'no place for a block (a PHP file must open with <?php)'}`,
-            );
+          log(`⚠ ${skipped.length} file(s) not stamped:`);
+          for (const s of skipped) log(`  ${s.file}: ${SKIP_REASONS[s.reason]}`);
         }
       }
       return done(0);

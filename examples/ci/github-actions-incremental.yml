@@ -1,5 +1,5 @@
 # Example — copy to .github/workflows/atlas-incremental.yml in your repo.
-# Enforce annotations only on the paths a PR changes (Phase 2 of the rollout):
+# Enforce annotations only on the files a PR changes (Phase 2 of the rollout):
 # new/edited code must be annotated; legacy code is grandfathered.
 name: atlas (incremental)
 
@@ -20,15 +20,11 @@ jobs:
       # A JS/TS repo installs its pinned atlas; any other repo runs it through bunx as-is.
       - run: if [ -f package.json ]; then bun install --frozen-lockfile; fi
 
-      - name: atlas check (changed paths)
+      - name: atlas check (changed files)
+        # One atlas run over the files the PR adds or changes; a file atlas doesn't consider is
+        # ignored. NUL-separated and unquoted so spaces and non-ASCII names survive.
         run: |
           git fetch origin "${{ github.base_ref }}" --depth=1
-          # every changed directory; atlas itself decides which files in it it considers
-          changed=$(git diff --name-only --diff-filter=ACMR "origin/${{ github.base_ref }}...HEAD" \
-            | xargs -r -n1 dirname | sort -u)
-          [ -z "$changed" ] && { echo "no changes"; exit 0; }
-          status=0
-          for dir in $changed; do
-            bunx @inixiative/atlas check "$dir" || status=1
-          done
-          exit $status
+          git -c core.quotePath=false diff --name-only -z --diff-filter=ACMR \
+            "origin/${{ github.base_ref }}...HEAD" \
+            | xargs -0 -r bunx @inixiative/atlas check

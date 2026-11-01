@@ -47,7 +47,7 @@ describe('planStamp', () => {
   });
 
   test('targeting scopes the plan to a folder', () => {
-    const plan = planStamp(files, config, 'additive', 'src/modules/billing/services');
+    const plan = planStamp(files, config, 'additive', ['src/modules/billing/services']);
     expect(plan.map((c) => c.path)).toEqual(['src/modules/billing/services/charge.ts']);
   });
 

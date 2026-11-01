@@ -8,6 +8,7 @@ import { runCli } from '../src/cli.ts';
 import { runCheck } from '../src/commands/check.ts';
 import { detectLanguages } from '../src/commands/init.ts';
 import { buildCoverageReport } from '../src/commands/report.ts';
+import { inScope } from '../src/commands/stamp.ts';
 import { bindAtlasImports } from '../src/config/load.ts';
 import { cachedGraph } from '../src/hook/cachedGraph.ts';
 import { runClaudeCodeHook } from '../src/hook/claudeCode.ts';
@@ -831,6 +832,123 @@ describe('round-4 review', () => {
           '# @atlas\r\n# @kind service\r\nWrite-Host 1\r\n',
         );
         expect((await runCheck(await analyze(root))).ok).toBe(true);
+      },
+    );
+  });
+});
+
+describe('round-5 review', () => {
+  const ATLAS = resolve(import.meta.dir, '../bin/atlas.ts');
+
+  test('targets: ./x, x/, `.` and several at once', () => {
+    expect(inScope('src/a.py', ['./src'])).toBe(true);
+    expect(inScope('src/a.py', ['src/'])).toBe(true);
+    expect(inScope('root.py', ['.'])).toBe(true);
+    expect(inScope('src/a.py', ['lib', 'src/a.py'])).toBe(true);
+    expect(inScope('srcx/a.py', ['src'])).toBe(false);
+  });
+
+  test('the pre-commit example checks staged root files and names with spaces or accents', async () => {
+    await withRepo(
+      {
+        '.atlas/config.ts': `export default { include: ['**/*.py'] };\n`,
+        'ok.py': '# @atlas\n',
+      },
+      async (root) => {
+        for (const [path, text] of [
+          ['root.py', 'x = 1\n'],
+          ['my dir/bad file.py', 'x = 1\n'],
+          ['ünï/a.py', 'x = 1\n'],
+        ] as const) {
+          mkdirSync(dirname(join(root, path)), { recursive: true });
+          writeFileSync(join(root, path), text);
+        }
+        Bun.spawnSync(['git', 'add', '-A'], { cwd: root });
+        const bin = join(root, '.fakebin');
+        mkdirSync(bin);
+        // bunx @inixiative/atlas … → this checkout's atlas
+        writeFileSync(join(bin, 'bunx'), `#!/bin/sh\nshift\nexec bun "${ATLAS}" "$@"\n`);
+        chmodSync(join(bin, 'bunx'), 0o755);
+        const run = Bun.spawnSync(['sh', resolve(import.meta.dir, '../examples/ci/pre-commit')], {
+          cwd: root,
+          env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+        });
+        const out = `${run.stdout}${run.stderr}`;
+        expect(run.exitCode).not.toBe(0);
+        for (const file of ['root.py', 'my dir/bad file.py', 'ünï/a.py'])
+          expect(out).toContain(file);
+        expect(out).not.toContain('ok.py');
+      },
+      { git: true },
+    );
+  });
+
+  test('report --out writes files atlas never maps', async () => {
+    await withRepo(
+      { '.atlas/config.ts': `export default {};\n`, 'a.md': '<!--\n@atlas\n-->\n' },
+      async (root) => {
+        mkdirSync(join(root, 'docs'));
+        await runCli(['report', '--out', join(root, 'docs'), '--root', root], { cwd: root });
+        expect((await analyze(root)).files.map((f) => f.path)).toEqual(['a.md']);
+      },
+    );
+  });
+
+  test('a file that is not valid in its encoding is read but never stamped', async () => {
+    const cp1252 = new Uint8Array([
+      ...new TextEncoder().encode('Write-Host "'),
+      0xe9,
+      0xa9,
+      ...new TextEncoder().encode('"\n'),
+    ]);
+    await withRepo(
+      {
+        '.atlas/config.ts': `export default { include: ['*.ps1'], stamp: [{ include: '*.ps1', kind: 'service' }] };\n`,
+        'run.ps1': cp1252,
+      },
+      async (root) => {
+        expect((await analyze(root)).files.map((f) => f.path)).toEqual(['run.ps1']);
+        const stamp = JSON.parse(
+          (await runCli(['stamp', '--write', '--json', '--root', root], { cwd: root })).out,
+        ) as { skipped: { file: string; reason: string }[] };
+        expect(stamp.skipped).toEqual([{ file: 'run.ps1', reason: 'encoding' }]);
+        expect([...(await Bun.file(join(root, 'run.ps1')).bytes())]).toEqual([...cp1252]);
+      },
+    );
+  });
+
+  test('UTF-16BE round-trips byte-exact, surrogate pairs included', async () => {
+    const be = (text: string) => {
+      const out = new Uint8Array(2 + text.length * 2);
+      out.set([0xfe, 0xff]);
+      for (let i = 0; i < text.length; i++) {
+        out[2 + i * 2] = text.charCodeAt(i) >> 8;
+        out[3 + i * 2] = text.charCodeAt(i) & 0xff;
+      }
+      return out;
+    };
+    await withRepo(
+      {
+        '.atlas/config.ts': `export default { include: ['*.ps1'], stamp: [{ include: '*.ps1', kind: 'service' }] };\n`,
+        'run.ps1': be('Write-Host "😀"\n'),
+      },
+      async (root) => {
+        await runCli(['stamp', '--write', '--root', root], { cwd: root });
+        expect([...(await Bun.file(join(root, 'run.ps1')).bytes())]).toEqual([
+          ...be('# @atlas\n# @kind service\nWrite-Host "😀"\n'),
+        ]);
+      },
+    );
+  });
+
+  test('a UTF-32 file is not read', async () => {
+    await withRepo(
+      {
+        '.atlas/config.ts': `export default { include: ['*.ps1'] };\n`,
+        'run.ps1': new Uint8Array([0xff, 0xfe, 0, 0, 0x23, 0, 0, 0]),
+      },
+      async (root) => {
+        expect((await analyze(root)).files).toEqual([]);
       },
     );
   });

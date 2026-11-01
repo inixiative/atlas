@@ -12,9 +12,9 @@ export const ALWAYS_IGNORE = [
   '**/.git/**',
   '**/dist/**',
   '**/.atlas/**',
-  'MAP.md',
-  'COVERAGE.md',
-  'atlas.html',
+  'MAP.md', // generate writes it at the root only
+  '**/COVERAGE.md', // report writes these wherever --out points
+  '**/atlas.html',
   '**/pnpm-lock.yaml',
 ];
 

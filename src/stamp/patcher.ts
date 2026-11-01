@@ -55,10 +55,11 @@ const renderWithEol = (spec: BlockSpec, style: CommentStyle, eol: string): strin
 const carryUses = (existing: AtlasAnnotation | null): Pick<BlockSpec, 'uses' | 'usesState'> =>
   existing ? { uses: existing.uses, usesState: existing.usesState } : {};
 
-// Why a file that needs a fresh block didn't get one: it already has an `@atlas` comment no
-// block parses from (a second block would hide it), or its language allows none where atlas
-// would put it (a PHP file that starts as HTML).
-export type StampSkip = 'unreadable' | 'no-place';
+// Why a file atlas would stamp was left alone: it already has an `@atlas` comment no block
+// parses from (a second block would hide it), its language allows none where atlas would put it
+// (a PHP file that starts as HTML), or its bytes aren't valid in its encoding (writing the text
+// back would replace them with U+FFFD).
+export type StampSkip = 'unreadable' | 'no-place' | 'encoding';
 
 // Merge a stamp into a file's source per mode. Returns the new content and
 // whether anything changed (idempotent: a no-op re-stamp reports changed=false).

@@ -1,20 +1,14 @@
 #!/usr/bin/env sh
 # Example local hook — copy to .husky/pre-commit (or .git/hooks/pre-commit; chmod +x).
-# Checks the directories you're about to commit (presence + vocab).
-# Scoped per-path, so it's fast and skips the registry-wide reference check.
+# Checks the files you're about to commit (presence + vocab), in one atlas run; a staged file
+# atlas doesn't consider is ignored. Scoped runs skip the registry-wide reference check.
+# NUL-separated and unquoted (core.quotePath=false) so spaces and non-ASCII names survive.
 
-# every staged directory; atlas itself decides which files in it it considers
-staged=$(git diff --cached --name-only --diff-filter=ACM \
-  | xargs -r -n1 dirname | sort -u)
-
-[ -z "$staged" ] && exit 0
-
-status=0
-for dir in $staged; do
-  bunx @inixiative/atlas check "$dir" || status=1
-done
+git -c core.quotePath=false diff --cached --name-only -z --diff-filter=ACMR \
+  | xargs -0 -r bunx @inixiative/atlas check
+status=$?
 
 if [ "$status" -ne 0 ]; then
-  echo "atlas: fix the annotations above, or run 'bunx @inixiative/atlas stamp <dir> --write' to fill them."
+  echo "atlas: fix the annotations above, or run 'bunx @inixiative/atlas stamp <file> --write' to fill them."
 fi
 exit "$status"

@@ -99,8 +99,11 @@ an exact file name; listing one under another style moves it there).
   error. Dot-directories are walked (`.github/`, `.claude/`); `.git`, `.atlas` (at any depth),
   `node_modules` and `dist` never are, and neither are submodules, symlinks, atlas's own outputs
   (`MAP.md`, `COVERAGE.md`, `atlas.html`) or `pnpm-lock.yaml`. A file named like source but
-  holding binary is skipped; a UTF-16 file is read, and stamping writes a file back in its own
-  encoding (UTF-8, UTF-8 with a byte-order mark, UTF-16).
+  holding binary, or stored as UTF-32, is skipped. A UTF-16 file with a byte-order mark is read,
+  and stamping writes a file back in its own encoding (UTF-8, UTF-8 with a byte-order mark,
+  UTF-16). A file whose bytes aren't valid in its encoding (a Windows-1252 `.ps1`) is read for
+  `check` and `graph`, but `stamp` leaves it alone and lists it under `skipped`: writing it back
+  would corrupt those bytes.
 - **Limits.** Line blocks are found anywhere in the file, so `# @atlas` lines inside a Python
   string or a shell heredoc read as the block. Matching ignores case.
 
@@ -406,7 +409,7 @@ codebase is **warn-only → incremental enforcing → fully enforcing**:
 
 ```bash
 atlas check --warn-only   # prints problems, never fails CI (rollout start)
-atlas check <path>        # enforce only changed paths (skips registry-wide reference checks)
+atlas check <paths…>    # enforce only the files or folders a PR changes (skips registry-wide reference checks)
 atlas check               # enforce the whole repo
 ```
 
