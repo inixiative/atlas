@@ -235,6 +235,18 @@ describe('placement rules', () => {
     );
   });
 
+  test('Go constraints below a copyright header, in several groups, all stay above the block', () => {
+    const go =
+      '// Copyright 2015 X.\n// Licensed under MIT.\n\n// +build linux\n\n// +build amd64\n\npackage x\n';
+    const { content } = applyStamp(go, tags, at('a.go'));
+    expect(content.startsWith(go.slice(0, go.indexOf('package')))).toBe(true);
+    expect(content.endsWith(' */\n\npackage x\n')).toBe(true);
+    // no constraint: the header is not a preamble, the block goes on top
+    expect(
+      applyStamp('// Copyright X.\n\npackage x\n', tags, at('b.go')).content.startsWith('/*\n'),
+    ).toBe(true);
+  });
+
   test('a preamble that ends the file without a newline stays first', () => {
     expect(applyStamp('#!/bin/sh', tags, at('a.sh')).content).toBe(
       '#!/bin/sh\n# @atlas\n# @kind service\n# @partOf feature:billing\n',

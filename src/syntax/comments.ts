@@ -227,11 +227,13 @@ const PREAMBLES: Preamble[] = [
     pattern: /^#[^\n]*coding[:=][^\n]*(?:\n|$)/,
   },
   { applies: isDockerfile, pattern: /^(?:#[ \t]*[a-z]+=[^\n]*(?:\n|$))+/i },
-  // Go build constraints: `// +build` must be preceded only by line comments, so a `/* */` block
-  // above it would switch it off
+  // Go build constraints: `// +build` must be preceded only by blank lines and line comments
+  // (a copyright header), so a `/* */` block above it would switch it off. Everything up to the
+  // last constraint line stays first; a file without one matches nothing here.
   {
     applies: withExtension('.go'),
-    pattern: /^(?:\/\/(?:go:build|[ \t]*\+build)[^\n]*(?:\r?\n|$))+(?:[ \t]*\r?\n)?/,
+    pattern:
+      /^(?:(?:[ \t]*(?:\/\/[^\n]*)?\r?\n)*?(?:\/\/(?:go:build|[ \t]*\+build)[^\n]*(?:\r?\n|$))+)+(?:[ \t]*\r?\n)?/,
   },
   {
     applies: withExtension('.md', '.mdx', '.markdown'),

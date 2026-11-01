@@ -30,7 +30,7 @@ const bindSelfImports = (): void => {
         contents: (await Bun.file(path).text()).replace(
           ATLAS_IMPORT,
           (_, keyword: string, quote: string, specifier: string) =>
-            `${keyword}${quote}${SELF[specifier]}${quote}`,
+            `${keyword}${quote}${SELF[specifier]?.replaceAll(quote, `\\${quote}`)}${quote}`,
         ),
       }));
     },

@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import type { LoadedConfig } from './config/defineConfig.ts';
 import { matchesAny } from './config/glob.ts';
 import { loadConfig } from './config/load.ts';
-import { stampFor } from './config/stamp.ts';
+import { type ResolvedStamp, stampFor } from './config/stamp.ts';
 import { mapLimit } from './fs/concurrent.ts';
 import { walkFiles } from './fs/walk.ts';
 import { type AtlasAnnotation, parseAtlasBlock } from './parse/parseAtlasBlock.ts';
@@ -14,29 +14,35 @@ export type Tagging = 'inline' | 'path';
 export type FileRecord = { path: string; tagging: Tagging; annotation: AtlasAnnotation | null };
 export type Analysis = { root: string; config: LoadedConfig; files: FileRecord[] };
 
-// A file atlas considers, and the comment style it is written in (null: tagged by path).
-export type ConsideredFile = { path: string; style: CommentStyle | null };
+// A file atlas considers, and the comment style it is written in (null: tagged by path, with
+// what its rules give it).
+export type ConsideredFile =
+  | { path: string; style: CommentStyle }
+  | { path: string; style: null; stamp: ResolvedStamp };
 
 // Bound open file descriptors so a repo with thousands of files can't hit EMFILE.
 const READ_CONCURRENCY = 64;
 
-const taggedByRules = (path: string, config: LoadedConfig): boolean => {
-  const s = stampFor(path, config.stamp, config.concepts);
-  return s.kind.length > 0 || s.partOf.length > 0 || s.constructs.length > 0;
-};
+const hasTags = (s: ResolvedStamp): boolean =>
+  s.kind.length > 0 || s.partOf.length > 0 || s.constructs.length > 0;
 
 // The files atlas considers: those `include` names, or by default every file in a comment
-// style atlas knows plus every file a stamp rule tags by its path.
+// style atlas knows plus every file a stamp rule tags by its path. A path-tagged file carries
+// the rules' result, so it is resolved once.
 export const consideredFiles = async (
   root: string,
   config: LoadedConfig,
 ): Promise<ConsideredFile[]> => {
   const { include } = config;
+  const tagsOf = (path: string) => stampFor(path, config.stamp, config.concepts);
   const keep = include
     ? (path: string) => matchesAny(include, path)
-    : (path: string) => styleFor(path, config.comments) !== null || taggedByRules(path, config);
+    : (path: string) => styleFor(path, config.comments) !== null || hasTags(tagsOf(path));
   const paths = await walkFiles(root, config.ignore, keep);
-  return paths.map((path) => ({ path, style: styleFor(path, config.comments) }));
+  return paths.map((path) => {
+    const style = styleFor(path, config.comments);
+    return style ? { path, style } : { path, style, stamp: tagsOf(path) };
+  });
 };
 
 // A file's text, and whether it starts with a UTF-8 byte-order mark (Bun's decoder drops it, so
@@ -53,8 +59,7 @@ export const readText = async (
 };
 
 // A path-tagged file's annotation: what the rules say, or null when they say nothing.
-const pathAnnotation = (path: string, config: LoadedConfig): AtlasAnnotation | null => {
-  const { kind, partOf, constructs } = stampFor(path, config.stamp, config.concepts);
+const pathAnnotation = ({ kind, partOf, constructs }: ResolvedStamp): AtlasAnnotation | null => {
   if (kind.length + partOf.length + constructs.length === 0) return null;
   const axes: Record<string, string[]> = { kind, partOf };
   if (constructs.length) axes.constructs = constructs;
@@ -66,11 +71,13 @@ const pathAnnotation = (path: string, config: LoadedConfig): AtlasAnnotation | n
 export const analyze = async (root: string): Promise<Analysis> => {
   const config = await loadConfig(root);
   const considered = await consideredFiles(root, config);
-  const files = await mapLimit(considered, READ_CONCURRENCY, async ({ path, style }) => {
-    if (!style) return { path, tagging: 'path' as const, annotation: pathAnnotation(path, config) };
+  const files = await mapLimit(considered, READ_CONCURRENCY, async (file) => {
+    const { path } = file;
+    if (file.style === null)
+      return { path, tagging: 'path' as const, annotation: pathAnnotation(file.stamp) };
     const read = await readText(root, path);
     if (read === null) return null;
-    return { path, tagging: 'inline' as const, annotation: parseAtlasBlock(read.text, style) };
+    return { path, tagging: 'inline' as const, annotation: parseAtlasBlock(read.text, file.style) };
   });
   return { root, config, files: files.filter((f): f is FileRecord => f !== null) };
 };
