@@ -1,11 +1,22 @@
-import { statSync } from 'node:fs';
+import { existsSync, lstatSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Glob } from 'bun';
 import { matchesAny } from '../config/glob.ts';
 
 // Never considered, whatever the config says. Dotdirs are walked (`.claude/`, `.github/` carry
-// real work); these aren't. `.atlas/` is the config itself.
-export const ALWAYS_IGNORE = ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/.atlas/**'];
+// real work); these aren't. `.atlas/` is the config itself; MAP.md, COVERAGE.md and atlas.html
+// are what `generate` and `report` write (stamping one would fight the next generate); a pnpm
+// lockfile is generated and pnpm strips comments from it.
+export const ALWAYS_IGNORE = [
+  '**/node_modules/**',
+  '**/.git/**',
+  '**/dist/**',
+  '**/.atlas/**',
+  'MAP.md',
+  'COVERAGE.md',
+  'atlas.html',
+  '**/pnpm-lock.yaml',
+];
 
 const git = async (root: string, args: string[]) => {
   let proc: ReturnType<typeof Bun.spawn>;
@@ -57,11 +68,13 @@ const allFiles = async (root: string): Promise<string[]> => {
   return files;
 };
 
+// A regular file, not a symlink: a link may point outside the repo (stamp would write there) or
+// at another listed file (stamped twice). Deleted-but-indexed files are skipped too.
 const isFile = (root: string, path: string): boolean => {
   try {
-    return statSync(resolve(root, path)).isFile();
+    return lstatSync(resolve(root, path)).isFile();
   } catch {
-    return false; // deleted but still in the index
+    return false;
   }
 };
 
@@ -72,6 +85,7 @@ export const walkFiles = async (
   ignore: string[],
   keep: (path: string) => boolean,
 ): Promise<string[]> => {
+  if (!existsSync(root)) throw new Error(`no such directory: ${root}`);
   const listed = (await gitFiles(root)) ?? (await allFiles(root));
   return listed
     .filter(

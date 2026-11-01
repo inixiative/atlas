@@ -17,7 +17,8 @@ jobs:
         with:
           bun-version: latest
 
-      - run: bun install --frozen-lockfile
+      # A JS/TS repo installs its pinned atlas; any other repo runs it through bunx as-is.
+      - run: if [ -f package.json ]; then bun install --frozen-lockfile; fi
 
       # ── Annotation check ────────────────────────────────────────────────
       # Rollout (DEV-003 Phase 4) — start warn-only, flip to enforcing later:

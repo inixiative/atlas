@@ -28,11 +28,14 @@ Atlas works on any repo: any language, docs and plain files included.
   as `pathTagged`; `check` says "no comment style for this file and no stamp rule tags its path".
 - **Walking.** `include` unset now means every file in a known comment style plus every file a
   rule tags. Files come from `git ls-files` (tracked, and untracked files not in `.gitignore`), so
-  generated output and nested worktrees stay out, and Zealot's graph builds in 0.64 s instead of
-  3.5 s. Outside a git work tree, or at a root the enclosing repo ignores, every file is listed;
-  any other git failure is an error. Dot-directories are walked (`.github/`, `.claude/`); `.git`,
-  `.atlas` (at any depth), `node_modules`, `dist` and submodules never are. A binary file with a
-  source extension is skipped.
+  generated output and nested worktrees stay out, and `node_modules` is never scanned: `graph`
+  on a 3,800-file repo went from 4.2 s to 1.0 s (median of 5 warm runs, same machine). Outside a
+  git work tree, or at a root the enclosing repo ignores, every file is listed; any other git
+  failure is an error, and a missing `--root` says so. Dot-directories are walked (`.github/`,
+  `.claude/`); `.git`, `.atlas` (at any depth), `node_modules`, `dist`, submodules and symlinks
+  never are, nor atlas's own outputs (`MAP.md`, `COVERAGE.md`, `atlas.html`) or `pnpm-lock.yaml`.
+  A binary file with a source extension is skipped; a UTF-16 file is read, and a stamped file is
+  written back in its own encoding (UTF-8, UTF-8 with a BOM, UTF-16).
 - **`atlas init`** detects the repo's languages (include globs spelled as the files are, e.g.
   `**/*.R`) and writes `.atlas/config.ts` (an include list for
   them), `kinds.ts` and `concepts.ts` (no concepts) from `examples/atlas-config/`.

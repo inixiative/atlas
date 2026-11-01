@@ -34,7 +34,15 @@ export const consideredFiles = async (
   config: LoadedConfig,
 ): Promise<ConsideredFile[]> => {
   const { include } = config;
-  const tagsOf = (path: string) => stampFor(path, config.stamp, config.concepts);
+  const resolved = new Map<string, ResolvedStamp>();
+  const tagsOf = (path: string): ResolvedStamp => {
+    let stamp = resolved.get(path);
+    if (!stamp) {
+      stamp = stampFor(path, config.stamp, config.concepts);
+      resolved.set(path, stamp);
+    }
+    return stamp;
+  };
   const keep = include
     ? (path: string) => matchesAny(include, path)
     : (path: string) => styleFor(path, config.comments) !== null || hasTags(tagsOf(path));
@@ -45,17 +53,50 @@ export const consideredFiles = async (
   });
 };
 
-// A file's text, and whether it starts with a UTF-8 byte-order mark (Bun's decoder drops it, so
-// the stamper puts it back; PowerShell 5.1 reads a .ps1 without one as ANSI). Null for a file
-// named like source but holding binary (a `.ts` video stream).
+// How a file's text is stored, so the stamper writes it back the same way. Bun's decoder drops
+// a byte-order mark, and Windows tools depend on it: PowerShell 5.1 reads a .ps1 without one as
+// ANSI, and writes UTF-16 by default.
+export type TextEncoding = 'utf-8' | 'utf-8-bom' | 'utf-16le' | 'utf-16be';
+
+const BOMS: Record<Exclude<TextEncoding, 'utf-8'>, number[]> = {
+  'utf-8-bom': [0xef, 0xbb, 0xbf],
+  'utf-16le': [0xff, 0xfe],
+  'utf-16be': [0xfe, 0xff],
+};
+
+const startsWith = (bytes: Uint8Array, prefix: number[]): boolean =>
+  prefix.every((byte, i) => bytes[i] === byte);
+
+// A file's text and encoding, or null for a file named like source but holding binary (a `.ts`
+// video stream).
 export const readText = async (
   root: string,
   path: string,
-): Promise<{ text: string; bom: boolean } | null> => {
+): Promise<{ text: string; encoding: TextEncoding } | null> => {
   const bytes = await Bun.file(resolve(root, path)).bytes();
+  for (const encoding of ['utf-16le', 'utf-16be'] as const)
+    if (startsWith(bytes, BOMS[encoding]))
+      return { text: new TextDecoder(encoding).decode(bytes), encoding };
   if (bytes.includes(0)) return null;
-  const bom = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
-  return { text: new TextDecoder().decode(bytes), bom };
+  const encoding = startsWith(bytes, BOMS['utf-8-bom']) ? 'utf-8-bom' : 'utf-8';
+  return { text: new TextDecoder().decode(bytes), encoding };
+};
+
+// The bytes to write for `text` in `encoding`, byte-order mark included.
+export const encodeText = (text: string, encoding: TextEncoding): Uint8Array => {
+  if (encoding === 'utf-8') return new TextEncoder().encode(text);
+  if (encoding === 'utf-8-bom')
+    return new Uint8Array([...BOMS[encoding], ...new TextEncoder().encode(text)]);
+  const out = new Uint8Array(2 + text.length * 2);
+  out.set(BOMS[encoding]);
+  for (let i = 0; i < text.length; i++) {
+    const unit = text.charCodeAt(i);
+    const [first, second] =
+      encoding === 'utf-16le' ? [unit & 0xff, unit >> 8] : [unit >> 8, unit & 0xff];
+    out[2 + i * 2] = first;
+    out[3 + i * 2] = second;
+  }
+  return out;
 };
 
 // A path-tagged file's annotation: what the rules say, or null when they say nothing.

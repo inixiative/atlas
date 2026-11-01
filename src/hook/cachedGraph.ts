@@ -20,9 +20,12 @@ const cachePathFor = (root: string, cacheDir: string, version: string): string =
   );
 
 // A `.atlas/` edit (new concept, new rule) makes the cached graph wrong before the TTL does.
+// Every file under `.atlas/`, helpers in subfolders included (their imports load too).
 const configNewerThan = (root: string, mtimeMs: number): boolean => {
   const dir = join(root, '.atlas');
-  return readdirSync(dir).some((entry) => statSync(join(dir, entry)).mtimeMs > mtimeMs);
+  return readdirSync(dir, { recursive: true }).some(
+    (entry) => statSync(join(dir, String(entry))).mtimeMs > mtimeMs,
+  );
 };
 
 // The hooks fire on every Read/Grep and a full analyze walks the whole tree (seconds on a

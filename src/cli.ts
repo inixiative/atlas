@@ -38,7 +38,7 @@ Commands:
 
 Flags:
   --root <dir>          repo root to operate on (default: cwd)
-  --json                machine-readable output (init/graph/check/coverage/stamp)
+  --json                machine-readable output (init/graph/check/coverage/stamp/query/report/setup)
   --stdout              print to stdout instead of writing a file (generate, report)
   --out <dir>           output directory for report files (report; default: root)
   --md / --html         emit only one report format (report; default: both)

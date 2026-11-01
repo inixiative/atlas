@@ -97,8 +97,10 @@ an exact file name; listing one under another style moves it there).
   in `.gitignore`), so generated output and nested worktrees stay out. Outside a git work tree
   every file is listed, and so is a root the enclosing repo ignores; any other git failure is an
   error. Dot-directories are walked (`.github/`, `.claude/`); `.git`, `.atlas` (at any depth),
-  `node_modules` and `dist` never are, and neither are submodules. A file named like source but
-  holding binary is skipped.
+  `node_modules` and `dist` never are, and neither are submodules, symlinks, atlas's own outputs
+  (`MAP.md`, `COVERAGE.md`, `atlas.html`) or `pnpm-lock.yaml`. A file named like source but
+  holding binary is skipped; a UTF-16 file is read, and stamping writes a file back in its own
+  encoding (UTF-8, UTF-8 with a byte-order mark, UTF-16).
 - **Limits.** Line blocks are found anywhere in the file, so `# @atlas` lines inside a Python
   string or a shell heredoc read as the block. Matching ignores case.
 

@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { consideredFiles, readText } from '../analyze.ts';
+import { consideredFiles, encodeText, readText, type TextEncoding } from '../analyze.ts';
 import type { LoadedConfig } from '../config/defineConfig.ts';
 import { loadConfig } from '../config/load.ts';
 import { stampFor } from '../config/stamp.ts';
@@ -7,7 +7,8 @@ import { mapLimit } from '../fs/concurrent.ts';
 import { applyStamp, type StampMode, type StampSkip } from '../stamp/patcher.ts';
 import type { CommentStyle } from '../syntax/comments.ts';
 
-export type StampChange = { path: string; before: string; after: string };
+// `before`/`after` are the text; `encoding` is how the file stores it (written back the same way).
+export type StampChange = { path: string; before: string; after: string; encoding?: TextEncoding };
 export type Unresolved = { file: string; category: string; value: string };
 export type Skipped = { file: string; reason: StampSkip };
 export type StampResult = { changes: StampChange[]; unresolved: Unresolved[]; skipped: Skipped[] };
@@ -63,7 +64,7 @@ export const runStamp = async (
   const read = await mapLimit(scoped, IO_CONCURRENCY, async ({ path, style }) => {
     if (!style) return null;
     const read = await readText(root, path);
-    return read === null ? null : { path, style, source: read.text, bom: read.bom };
+    return read === null ? null : { path, style, source: read.text, encoding: read.encoding };
   });
   const files = read.filter((f) => f !== null);
 
@@ -72,9 +73,13 @@ export const runStamp = async (
   for (const file of files) {
     const resolved = stampFor(file.path, config.stamp, config.concepts);
     const result = applyStamp(file.source, resolved, file, opts.mode);
-    const mark = file.bom ? '\uFEFF' : '';
     if (result.changed)
-      changes.push({ path: file.path, before: mark + file.source, after: mark + result.content });
+      changes.push({
+        path: file.path,
+        before: file.source,
+        after: result.content,
+        encoding: file.encoding,
+      });
     else if (result.skipped) skipped.push({ file: file.path, reason: result.skipped });
   }
   const unresolved: Unresolved[] = [];
@@ -85,6 +90,8 @@ export const runStamp = async (
   }
 
   if (opts.write)
-    await mapLimit(changes, IO_CONCURRENCY, (c) => Bun.write(resolve(root, c.path), c.after));
+    await mapLimit(changes, IO_CONCURRENCY, (c) =>
+      Bun.write(resolve(root, c.path), encodeText(c.after, c.encoding ?? 'utf-8')),
+    );
   return { changes, unresolved, skipped };
 };

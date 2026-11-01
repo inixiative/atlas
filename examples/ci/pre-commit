@@ -1,10 +1,11 @@
 #!/usr/bin/env sh
 # Example local hook — copy to .husky/pre-commit (or .git/hooks/pre-commit; chmod +x).
-# Checks the source directories you're about to commit (presence + vocab).
+# Checks the directories you're about to commit (presence + vocab).
 # Scoped per-path, so it's fast and skips the registry-wide reference check.
 
+# every staged directory; atlas itself decides which files in it it considers
 staged=$(git diff --cached --name-only --diff-filter=ACM \
-  | grep -E '\.(ts|tsx)$' | xargs -r -n1 dirname | sort -u)
+  | xargs -r -n1 dirname | sort -u)
 
 [ -z "$staged" ] && exit 0
 

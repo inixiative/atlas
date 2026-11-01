@@ -141,13 +141,17 @@ const LANGUAGE_RULES: Record<string, Placement & { writeOpen?: string }> = {
 };
 
 // The table a repo runs with: atlas's, plus whatever `.atlas/config.ts` adds. An entry the repo
-// lists under another style moves there.
+// lists under another style moves there (in any case, as matching ignores case).
 export const mergeCommentTable = (extra: CommentTable = {}): Required<CommentTable> => {
-  const moved = new Set(Object.values(extra).flat());
+  const moved = new Set(
+    Object.values(extra)
+      .flat()
+      .map((entry) => entry.toLowerCase()),
+  );
   const merged = {} as Required<CommentTable>;
   for (const name of Object.keys(COMMENT_TABLE) as CommentStyleName[]) {
     merged[name] = [
-      ...COMMENT_TABLE[name].filter((entry) => !moved.has(entry)),
+      ...COMMENT_TABLE[name].filter((entry) => !moved.has(entry.toLowerCase())),
       ...(extra[name] ?? []),
     ];
   }

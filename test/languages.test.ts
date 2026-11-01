@@ -1,12 +1,15 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { analyze } from '../src/analyze.ts';
 import { runCli } from '../src/cli.ts';
 import { runCheck } from '../src/commands/check.ts';
 import { detectLanguages } from '../src/commands/init.ts';
+import { buildCoverageReport } from '../src/commands/report.ts';
+import { bindAtlasImports } from '../src/config/load.ts';
+import { cachedGraph } from '../src/hook/cachedGraph.ts';
 import { runClaudeCodeHook } from '../src/hook/claudeCode.ts';
 import { parseAtlasBlock } from '../src/parse/parseAtlasBlock.ts';
 import { applyStamp } from '../src/stamp/patcher.ts';
@@ -669,6 +672,165 @@ describe('atlas init', () => {
         const again = await runCli(['init', '--root', root], { cwd: root });
         expect(again.code).toBe(1);
         expect(again.out).toContain('already exists');
+      },
+    );
+  });
+});
+
+describe('round-4 review', () => {
+  test('symlinks are never walked, so stamp never writes outside the repo or twice', async () => {
+    await withRepo(
+      {
+        '.atlas/config.ts': `export default { stamp: [{ include: 'src/**', kind: 'service' }] };\n`,
+        'outside.py': 'x = 1\n',
+        'repo/src/a.py': 'y = 1\n',
+      },
+      async (base) => {
+        const root = join(base, 'repo');
+        mkdirSync(join(root, '.atlas'), { recursive: true });
+        writeFileSync(
+          join(root, '.atlas/config.ts'),
+          `export default { stamp: [{ include: 'src/**', kind: 'service' }] };\n`,
+        );
+        symlinkSync('../../outside.py', join(root, 'src/link.py'));
+        symlinkSync('a.py', join(root, 'src/twin.py'));
+        await runCli(['stamp', '--write', '--root', root], { cwd: root });
+        expect(await Bun.file(join(base, 'outside.py')).text()).toBe('x = 1\n');
+        expect((await analyze(root)).files.map((f) => f.path)).toEqual(['src/a.py']);
+      },
+    );
+  });
+
+  test("atlas's own outputs are never considered, so generate then check stays clean", async () => {
+    await withRepo(
+      {
+        '.atlas/config.ts': `export default { stamp: [{ include: '**', kind: 'service' }] };\n`,
+        'a.py': '# @atlas\n# @kind service\n',
+      },
+      async (root) => {
+        await runCli(['generate', '--root', root], { cwd: root });
+        await runCli(['report', '--root', root], { cwd: root });
+        writeFileSync(join(root, 'pnpm-lock.yaml'), 'lockfileVersion: 9\n');
+        expect((await analyze(root)).files.map((f) => f.path)).toEqual(['a.py']);
+        expect((await runCli(['check', '--root', root], { cwd: root })).code).toBe(0);
+      },
+    );
+  });
+
+  test('report keeps path-tagged files out of the @uses counts, like coverage', async () => {
+    await withRepo(
+      {
+        '.atlas/config.ts': `export default { stamp: [{ include: '*.json', kind: 'config' }] };\n`,
+        'a.py': '# @atlas\n# @kind service\n',
+        'b.json': '{}\n',
+      },
+      async (root) => {
+        const report = buildCoverageReport(await analyze(root));
+        expect(report.total.files).toBe(2);
+        expect(report.total.usesUncurated).toBe(1);
+      },
+    );
+  });
+
+  test("imports bind with forward slashes and an escaped quote (Windows, O'Brien)", () => {
+    const paths = { '@inixiative/atlas': "C:\\Users\\O'Brien\\atlas\\src\\index.ts" };
+    const out = bindAtlasImports(
+      `import { a } from '@inixiative/atlas';\nconst b = import("@inixiative/atlas");\n`,
+      paths,
+    );
+    // what the module loader will actually see for both forms
+    const js = new Bun.Transpiler({ loader: 'ts' }).transformSync(out);
+    expect(js).toContain(`from "C:/Users/O'Brien/atlas/src/index.ts"`);
+    expect(js).toContain(`import("C:/Users/O'Brien/atlas/src/index.ts")`);
+    expect(bindAtlasImports(`const s = '@inixiative/atlas';\n`, paths)).toBe(
+      `const s = '@inixiative/atlas';\n`,
+    );
+  });
+
+  test('git output is read in the C locale (a translated "not a git repository" still lists files)', async () => {
+    await withRepo(
+      { '.atlas/config.ts': `export default { include: ['*.py'] };\n`, 'a.py': '# @atlas\n' },
+      async (root) => {
+        const bin = join(root, '.fakebin');
+        mkdirSync(bin);
+        writeFileSync(
+          join(bin, 'git'),
+          '#!/bin/sh\nif [ "$LC_ALL" = C ]; then echo "fatal: not a git repository" >&2; else echo "fatal: kein Git-Repository" >&2; fi\nexit 128\n',
+        );
+        chmodSync(join(bin, 'git'), 0o755);
+        // a separate process, so its git sees this PATH and a German locale from the start
+        const run = Bun.spawnSync(
+          [
+            'bun',
+            resolve(import.meta.dir, '../bin/atlas.ts'),
+            'coverage',
+            '--json',
+            '--root',
+            root,
+          ],
+          { env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, LC_ALL: 'de_DE.UTF-8' } },
+        );
+        expect(run.exitCode).toBe(0);
+        expect((JSON.parse(run.stdout.toString()) as { total: number }).total).toBe(1);
+      },
+    );
+  });
+
+  test('a comments override moves a table entry in any case', () => {
+    expect(styleNameFor('a.md', mergeCommentTable({ hash: ['.MD'] }))).toBe('hash');
+  });
+
+  test('a missing --root says so', async () => {
+    const result = await runCli(['check', '--root', '/no/such/dir/atlas'], { cwd: '/' });
+    expect(result.code).toBe(1);
+    expect(result.out).toContain('no such directory: /no/such/dir/atlas');
+  });
+
+  test('the hook graph cache notices an edit to a nested .atlas helper', async () => {
+    await withRepo(
+      {
+        '.atlas/config.ts': `import { kind } from './lib/kind.ts';\nexport default { include: ['a.py'], stamp: [] , kindUsed: kind };\n`,
+        '.atlas/lib/kind.ts': `export const kind = 'a';\n`,
+        'a.py': '# @atlas\n',
+      },
+      async (root) => {
+        const cacheDir = join(root, '.cache-test');
+        await cachedGraph(root, { cacheDir });
+        const later = new Date(Date.now() + 5_000);
+        writeFileSync(join(root, '.atlas/lib/kind.ts'), `export const kind = 'b';\n`);
+        const { utimesSync, readdirSync, statSync } = await import('node:fs');
+        utimesSync(join(root, '.atlas/lib/kind.ts'), later, later);
+        const [cache] = readdirSync(cacheDir);
+        const before = statSync(join(cacheDir, cache ?? '')).mtimeMs;
+        await cachedGraph(root, { cacheDir });
+        expect(statSync(join(cacheDir, cache ?? '')).mtimeMs).toBeGreaterThan(before);
+      },
+    );
+  });
+
+  test('a UTF-16 file is read, stamped, and written back as UTF-16', async () => {
+    const utf16 = (text: string) => {
+      const out = new Uint8Array(2 + text.length * 2);
+      out.set([0xff, 0xfe]);
+      for (let i = 0; i < text.length; i++) out[2 + i * 2] = text.charCodeAt(i);
+      return out;
+    };
+    await withRepo(
+      {
+        '.atlas/config.ts': `export default { include: ['*.ps1'], stamp: [{ include: '*.ps1', kind: 'service' }] };\n`,
+        'run.ps1': utf16('Write-Host 1\r\n'),
+      },
+      async (root) => {
+        expect((await runCheck(await analyze(root))).problems.map((p) => p.file)).toEqual([
+          'run.ps1',
+        ]);
+        await runCli(['stamp', '--write', '--root', root], { cwd: root });
+        const bytes = await Bun.file(join(root, 'run.ps1')).bytes();
+        expect([...bytes.slice(0, 4)]).toEqual([0xff, 0xfe, 0x23, 0x00]); // BOM, then `#` in UTF-16LE
+        expect(new TextDecoder('utf-16le').decode(bytes)).toBe(
+          '# @atlas\r\n# @kind service\r\nWrite-Host 1\r\n',
+        );
+        expect((await runCheck(await analyze(root))).ok).toBe(true);
       },
     );
   });

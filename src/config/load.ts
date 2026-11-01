@@ -9,14 +9,24 @@ import type { AtlasConfigInput, LoadedConfig } from './defineConfig.ts';
 // node_modules (`bunx @inixiative/atlas check` in a Python repo) and never against another
 // installed version. Bun's runtime plugins ignore onResolve for bare imports, so the specifier
 // is rewritten on load.
-// Forward slashes: the path is spliced into a string literal, where a Windows `\` would be read
-// as an escape (`C:\Users\node_modules` → `C:Users<newline>ode_modules`). Bun accepts `C:/…`.
 const SELF: Record<string, string> = {
-  '@inixiative/atlas': resolve(import.meta.dir, '../index.ts').replaceAll('\\', '/'),
-  '@inixiative/atlas/config': resolve(import.meta.dir, './defineConfig.ts').replaceAll('\\', '/'),
+  '@inixiative/atlas': resolve(import.meta.dir, '../index.ts'),
+  '@inixiative/atlas/config': resolve(import.meta.dir, './defineConfig.ts'),
 };
 // only a module specifier: `from '…'`, `import '…'`, `import('…')`, never another string literal
 const ATLAS_IMPORT = /(\bfrom\s*|\bimport\s*\(?\s*)(['"])(@inixiative\/atlas(?:\/config)?)\2/g;
+
+// Rewrite a config file's atlas imports to `paths`. The path is spliced into the file's own
+// string literal, so it is written with forward slashes (a Windows `\` would be read as an
+// escape: `C:\Users\node_modules` → `C:Users<newline>ode_modules`; Bun accepts `C:/…`) and the
+// literal's quote is escaped (an install under `O'Brien/`).
+export const bindAtlasImports = (source: string, paths: Record<string, string> = SELF): string =>
+  source.replace(ATLAS_IMPORT, (match, keyword: string, quote: string, specifier: string) => {
+    const path = paths[specifier];
+    if (!path) return match;
+    return `${keyword}${quote}${path.replaceAll('\\', '/').replaceAll(quote, `\\${quote}`)}${quote}`;
+  });
+
 let bound = false;
 const bindSelfImports = (): void => {
   if (bound) return;
@@ -27,11 +37,7 @@ const bindSelfImports = (): void => {
     setup(build) {
       build.onLoad({ filter: /[\\/]\.atlas[\\/].+\.[cm]?ts$/ }, async ({ path }) => ({
         loader: 'ts',
-        contents: (await Bun.file(path).text()).replace(
-          ATLAS_IMPORT,
-          (_, keyword: string, quote: string, specifier: string) =>
-            `${keyword}${quote}${SELF[specifier]?.replaceAll(quote, `\\${quote}`)}${quote}`,
-        ),
+        contents: bindAtlasImports(await Bun.file(path).text()),
       }));
     },
   });

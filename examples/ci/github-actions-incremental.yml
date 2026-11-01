@@ -17,14 +17,16 @@ jobs:
         with:
           bun-version: latest
 
-      - run: bun install --frozen-lockfile
+      # A JS/TS repo installs its pinned atlas; any other repo runs it through bunx as-is.
+      - run: if [ -f package.json ]; then bun install --frozen-lockfile; fi
 
       - name: atlas check (changed paths)
         run: |
           git fetch origin "${{ github.base_ref }}" --depth=1
-          changed=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" \
-            | grep -E '\.(ts|tsx)$' | xargs -r -n1 dirname | sort -u)
-          [ -z "$changed" ] && { echo "no source changes"; exit 0; }
+          # every changed directory; atlas itself decides which files in it it considers
+          changed=$(git diff --name-only --diff-filter=ACMR "origin/${{ github.base_ref }}...HEAD" \
+            | xargs -r -n1 dirname | sort -u)
+          [ -z "$changed" ] && { echo "no changes"; exit 0; }
           status=0
           for dir in $changed; do
             bunx @inixiative/atlas check "$dir" || status=1
