@@ -33,12 +33,16 @@ Atlas works on any repo: any language, docs and plain files included.
   git work tree, or at a root the enclosing repo ignores, every file is listed; any other git
   failure is an error, and a missing `--root` says so. Dot-directories are walked (`.github/`,
   `.claude/`); `.git`, `.atlas` (at any depth), `node_modules`, `dist`, submodules and symlinks
-  never are, nor atlas's own outputs (`MAP.md`, `COVERAGE.md`, `atlas.html`) or `pnpm-lock.yaml`.
-  A binary or UTF-32 file with a source extension is skipped. A UTF-16 file with a BOM is read,
+  never are, nor atlas's own outputs (`MAP.md` at the root, `COVERAGE.md` and `atlas.html` at any
+  depth) or `pnpm-lock.yaml`.
+  A binary (NUL bytes and not valid UTF-8) or UTF-32 file with a source extension is
+  skipped; valid UTF-8 holding a NUL is read. A UTF-16 file with a BOM is read,
   and a stamped file is written back in its own encoding (UTF-8, UTF-8 with a BOM, UTF-16); a
   file whose bytes aren't valid in its encoding (Windows-1252) is never stamped (`skipped`).
-- **Targets.** `check` and `stamp` take any number of files or folders (`./src`, `src/` and `.`
-  work), so the CI examples check exactly the changed files in one run.
+- **Targets.** `check` and `stamp` take any number of files or folders (`./src`, `src/`, `.`,
+  absolute paths), resolved against the repo root; one that doesn't exist or lies outside it is
+  an error. The CI examples check exactly the changed files (one atlas run, or several when xargs
+  splits a very long list), and fail when git fails rather than checking nothing.
 - **`atlas init`** detects the repo's languages (include globs spelled as the files are, e.g.
   `**/*.R`) and writes `.atlas/config.ts` (an include list for
   them), `kinds.ts` and `concepts.ts` (no concepts) from `examples/atlas-config/`.

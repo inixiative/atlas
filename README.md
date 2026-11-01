@@ -98,14 +98,16 @@ an exact file name; listing one under another style moves it there).
   every file is listed, and so is a root the enclosing repo ignores; any other git failure is an
   error. Dot-directories are walked (`.github/`, `.claude/`); `.git`, `.atlas` (at any depth),
   `node_modules` and `dist` never are, and neither are submodules, symlinks, atlas's own outputs
-  (`MAP.md`, `COVERAGE.md`, `atlas.html`) or `pnpm-lock.yaml`. A file named like source but
-  holding binary, or stored as UTF-32, is skipped. A UTF-16 file with a byte-order mark is read,
+  (`MAP.md` at the root; `COVERAGE.md` and `atlas.html` at any depth, wherever `report --out`
+  put them) or `pnpm-lock.yaml`. A file named like source but
+  holding binary (NUL bytes and not valid UTF-8), or stored as UTF-32, is skipped. A UTF-16 file with a byte-order mark is read,
   and stamping writes a file back in its own encoding (UTF-8, UTF-8 with a byte-order mark,
   UTF-16). A file whose bytes aren't valid in its encoding (a Windows-1252 `.ps1`) is read for
   `check` and `graph`, but `stamp` leaves it alone and lists it under `skipped`: writing it back
   would corrupt those bytes.
-- **Limits.** Line blocks are found anywhere in the file, so `# @atlas` lines inside a Python
-  string or a shell heredoc read as the block. Matching ignores case.
+- **Limits.** atlas reads comments, not the language around them, so an `@atlas` block inside a
+  string (a Python string, a shell heredoc, a JS template literal) reads as the file's block, and
+  `stamp` (`--overwrite` included) rewrites it, which changes that string. Matching ignores case.
 
 atlas maps files, not the functions inside them, in every language.
 
@@ -328,7 +330,7 @@ primitive:testFactories (thesaurus "seed a user") — 3 file(s), 1 consumer(s) v
 
 `atlas check` flags an entry for a concept the registry doesn't have, an empty phrase list, an empty
 phrase (one with no letter or digit), and a `doc` whose file doesn't resolve to a real file; a
-scoped `atlas check <target>` skips the doc check like the other reference checks. `loadConfig`
+scoped `atlas check <paths…>` skips the doc check like the other reference checks. `loadConfig`
 refuses an entry with any key besides `phrases` and `doc`, so a `docs:` typo can't silently fall
 back to the default doc. Whether a phrase is apt is the curator's call.
 
@@ -394,7 +396,8 @@ Absence is meaningful, so atlas leaves `@uses` out of stamping entirely:
 Blanks are fillable on demand — the `eslint --fix` shape. Always **dry-run by default**; pass
 `--write` to apply.
 
-- **Targeting** — `all` (default), a folder, or a single file.
+- **Targeting** — `all` (default), or any number of files and folders (`src/`, `./src`, `.`),
+  each resolved against the repo root; a target that doesn't exist or lies outside it is an error.
 - **Additive (default)** — fill only what's absent; never modify an existing tag; never touch `@uses`.
 - **Overwrite (`--overwrite`)** — resync the derivable axes (`@kind`/`@partOf`) to the current
   rules; **never** overwrites curated `@uses`. A `@atlas pin` block is exempt.
@@ -409,7 +412,7 @@ codebase is **warn-only → incremental enforcing → fully enforcing**:
 
 ```bash
 atlas check --warn-only   # prints problems, never fails CI (rollout start)
-atlas check <paths…>    # enforce only the files or folders a PR changes (skips registry-wide reference checks)
+atlas check <paths…>      # enforce only the files a PR changes (skips registry-wide reference checks)
 atlas check               # enforce the whole repo
 ```
 

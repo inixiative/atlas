@@ -8,7 +8,7 @@ import { runCli } from '../src/cli.ts';
 import { runCheck } from '../src/commands/check.ts';
 import { detectLanguages } from '../src/commands/init.ts';
 import { buildCoverageReport } from '../src/commands/report.ts';
-import { inScope } from '../src/commands/stamp.ts';
+import { inScope, resolveTargets } from '../src/commands/stamp.ts';
 import { bindAtlasImports } from '../src/config/load.ts';
 import { cachedGraph } from '../src/hook/cachedGraph.ts';
 import { runClaudeCodeHook } from '../src/hook/claudeCode.ts';
@@ -539,7 +539,10 @@ describe('a mixed-language repo', () => {
     await withRepo(
       {
         '.atlas/config.ts': `export default { include: ['**/*.ts'] };\n`,
-        'clip.ts': new Uint8Array([0x47, 0x00, 0x11, 0x10]),
+        // a real binary: a PNG header (NUL bytes and not valid UTF-8)
+        'clip.ts': new Uint8Array([
+          0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0xff, 0xd8,
+        ]),
         'a.ts': '/**\n * @atlas\n */\n',
       },
       async (root) => {
@@ -951,5 +954,63 @@ describe('round-5 review', () => {
         expect((await analyze(root)).files).toEqual([]);
       },
     );
+  });
+});
+
+describe('round-6 review', () => {
+  test('valid UTF-8 holding a NUL is text, read and checked like any file', async () => {
+    await withRepo(
+      {
+        '.atlas/config.ts': `export default { include: ['*.ts'] };\n`,
+        'sep.ts': "/**\n * @atlas\n * @kind constant\n */\nexport const SEP = '\u0000';\n",
+        'bare.ts': "export const SEP = '\u0000';\n",
+      },
+      async (root) => {
+        const { files } = await analyze(root);
+        expect(files.map((f) => [f.path, f.annotation?.kind ?? null])).toEqual([
+          ['bare.ts', null],
+          ['sep.ts', ['constant']],
+        ]);
+      },
+    );
+  });
+
+  test('targets resolve against the root; missing or outside ones are errors', async () => {
+    await withRepo(
+      { '.atlas/config.ts': `export default { include: ['src/*.py'] };\n`, 'src/a.py': 'x\n' },
+      async (root) => {
+        expect(resolveTargets(root, ['./', join(root, 'src'), 'src/./a.py'])).toEqual([
+          '.',
+          'src',
+          'src/a.py',
+        ]);
+        expect(() => resolveTargets(root, ['nope'])).toThrow('no such file or folder: nope');
+        expect(() => resolveTargets(root, ['../'])).toThrow('outside the repo root');
+        const check = await runCli(['check', './', '--root', root], { cwd: root });
+        expect(check.out).toContain('missing @atlas block'); // `./` is the whole repo
+      },
+    );
+  });
+
+  test('a UTF-32BE file is not read', async () => {
+    await withRepo(
+      {
+        '.atlas/config.ts': `export default { include: ['*.ps1'] };\n`,
+        'run.ps1': new Uint8Array([0, 0, 0xfe, 0xff, 0, 0, 0, 0x23]),
+      },
+      async (root) => {
+        expect((await analyze(root)).files).toEqual([]);
+      },
+    );
+  });
+
+  test('the pre-commit example fails when git fails, instead of checking nothing', async () => {
+    await withRepo({ 'a.py': 'x\n' }, async (root) => {
+      const run = Bun.spawnSync(['sh', resolve(import.meta.dir, '../examples/ci/pre-commit')], {
+        cwd: root, // not a git repo: `git diff --cached` fails
+        env: { ...process.env, GIT_CEILING_DIRECTORIES: dirname(root) },
+      });
+      expect(run.exitCode).not.toBe(0);
+    });
   });
 });

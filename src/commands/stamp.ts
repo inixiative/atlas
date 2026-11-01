@@ -1,4 +1,5 @@
-import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { isAbsolute, relative, resolve } from 'node:path';
 import { consideredFiles, encodeText, readText, type TextEncoding } from '../analyze.ts';
 import type { LoadedConfig } from '../config/defineConfig.ts';
 import { loadConfig } from '../config/load.ts';
@@ -26,6 +27,19 @@ export const inScope = (path: string, targets: string[] = []): boolean => {
     return path === target || path.startsWith(`${target}/`);
   });
 };
+
+// Command-line targets as repo-relative paths. A target is resolved against the repo root (an
+// absolute path works too) and must exist inside it: a typo'd or outside path would otherwise
+// scope a check to nothing and pass.
+export const resolveTargets = (root: string, raw: string[]): string[] =>
+  raw.map((target) => {
+    const absolute = resolve(root, target);
+    const rel = relative(resolve(root), absolute).replaceAll('\\', '/');
+    if (rel.startsWith('..') || isAbsolute(rel))
+      throw new Error(`target is outside the repo root: ${target}`);
+    if (!existsSync(absolute)) throw new Error(`no such file or folder: ${target}`);
+    return rel === '' ? '.' : rel;
+  });
 
 // Pure: what stamping a file WOULD do, or null if it's already up to date.
 export const computeStamp = (
@@ -77,7 +91,13 @@ export const runStamp = async (
   const skipped: Skipped[] = [];
   // the rules' result for each file, used for the stamp and for the unresolved report
   const rules = new Map(
-    scoped.map(({ path }) => [path, stampFor(path, config.stamp, config.concepts)] as const),
+    scoped.map(
+      (f) =>
+        [
+          f.path,
+          f.style === null ? f.stamp : stampFor(f.path, config.stamp, config.concepts),
+        ] as const,
+    ),
   );
   for (const file of files) {
     const resolved = rules.get(file.path) ?? stampFor(file.path, config.stamp, config.concepts);

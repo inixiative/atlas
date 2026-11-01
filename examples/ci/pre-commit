@@ -1,11 +1,18 @@
 #!/usr/bin/env sh
 # Example local hook — copy to .husky/pre-commit (or .git/hooks/pre-commit; chmod +x).
-# Checks the files you're about to commit (presence + vocab), in one atlas run; a staged file
-# atlas doesn't consider is ignored. Scoped runs skip the registry-wide reference check.
-# NUL-separated and unquoted (core.quotePath=false) so spaces and non-ASCII names survive.
+# Checks the files you're about to commit (presence + vocab); a staged file atlas doesn't
+# consider is ignored. Scoped runs skip the registry-wide reference check. It reads the working
+# tree, not the staged blobs, so stage what you check.
+# NUL-separated and unquoted (core.quotePath=false) so spaces and non-ASCII names survive. The
+# list goes through a file, not a pipe, so a git failure fails the hook instead of checking
+# nothing. A very long list is split by xargs into several atlas runs; any failing run fails it.
 
-git -c core.quotePath=false diff --cached --name-only -z --diff-filter=ACMR \
-  | xargs -0 -r bunx @inixiative/atlas check
+set -e
+files=$(mktemp)
+trap 'rm -f "$files"' EXIT
+git -c core.quotePath=false diff --cached --name-only -z --diff-filter=ACMR > "$files"
+set +e
+xargs -0 -r bunx @inixiative/atlas check < "$files"
 status=$?
 
 if [ "$status" -ne 0 ]; then

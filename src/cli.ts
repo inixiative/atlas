@@ -8,7 +8,7 @@ import { init } from './commands/init.ts';
 import { flagsToRule, type QueryRule, queryFiles, toQueryRecords } from './commands/query.ts';
 import { buildConceptGraph, buildCoverageReport } from './commands/report.ts';
 import { CLAUDE_SETTINGS, type SetupReport, setupClaudeHooks } from './commands/setup.ts';
-import { inScope, runStamp } from './commands/stamp.ts';
+import { inScope, resolveTargets, runStamp } from './commands/stamp.ts';
 import { HOOK_EVENTS, type HookEvent, runClaudeCodeHook } from './hook/claudeCode.ts';
 import { renderCoverageHtml } from './render/html.ts';
 import { renderCoverageMarkdown } from './render/markdown.ts';
@@ -217,7 +217,7 @@ const dispatch = async (
     }
 
     case 'check': {
-      const targets = positionals.slice(1);
+      const targets = resolveTargets(root, positionals.slice(1));
       const warnOnly = flags['warn-only'] === true;
       const full = await analyze(root);
       const scoped = targets.length
@@ -396,7 +396,7 @@ const dispatch = async (
       const write = flags.write === true;
       const { changes, unresolved, skipped } = await runStamp(root, {
         mode,
-        targets: positionals.slice(1),
+        targets: resolveTargets(root, positionals.slice(1)),
         write,
       });
       if (json) {

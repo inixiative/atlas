@@ -68,7 +68,8 @@ const startsWith = (bytes: Uint8Array, prefix: number[]): boolean =>
   prefix.every((byte, i) => bytes[i] === byte);
 
 // A file's text and encoding, or null for a file named like source but holding binary (a `.ts`
-// video stream) or stored as UTF-32. `exact` is false when the bytes aren't valid in their
+// video stream: NUL bytes and not valid UTF-8) or stored as UTF-32. A NUL alone isn't binary:
+// valid UTF-8 source may hold one. `exact` is false when the bytes aren't valid in their
 // encoding (a Windows-1252 `.ps1`): the text is still read, with U+FFFD for the bad bytes, so
 // check and graph work, but the stamper must not write it back.
 export const readText = async (
@@ -77,17 +78,14 @@ export const readText = async (
 ): Promise<{ text: string; encoding: TextEncoding; exact: boolean } | null> => {
   const bytes = await Bun.file(resolve(root, path)).bytes();
   if (startsWith(bytes, [0xff, 0xfe, 0, 0]) || startsWith(bytes, [0, 0, 0xfe, 0xff])) return null;
-  let encoding: TextEncoding | undefined;
+  let encoding: TextEncoding = startsWith(bytes, BOMS['utf-8-bom']) ? 'utf-8-bom' : 'utf-8';
   for (const utf16 of ['utf-16le', 'utf-16be'] as const)
     if (startsWith(bytes, BOMS[utf16])) encoding = utf16;
-  if (!encoding) {
-    if (bytes.includes(0)) return null;
-    encoding = startsWith(bytes, BOMS['utf-8-bom']) ? 'utf-8-bom' : 'utf-8';
-  }
   const label = encoding === 'utf-8-bom' ? 'utf-8' : encoding;
   try {
     return { text: new TextDecoder(label, { fatal: true }).decode(bytes), encoding, exact: true };
   } catch {
+    if (label === 'utf-8' && bytes.includes(0)) return null;
     return { text: new TextDecoder(label).decode(bytes), encoding, exact: false };
   }
 };

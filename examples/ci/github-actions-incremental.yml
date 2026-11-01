@@ -21,10 +21,14 @@ jobs:
       - run: if [ -f package.json ]; then bun install --frozen-lockfile; fi
 
       - name: atlas check (changed files)
-        # One atlas run over the files the PR adds or changes; a file atlas doesn't consider is
-        # ignored. NUL-separated and unquoted so spaces and non-ASCII names survive.
+        # The files the PR adds or changes; a file atlas doesn't consider is ignored. NUL-separated
+        # and unquoted so spaces and non-ASCII names survive. The list goes through a file and the
+        # shell fails on any error, so a failed diff fails the step instead of checking nothing.
+        # (A very long list is split by xargs into several atlas runs; any failing run fails it.)
+        shell: bash
         run: |
-          git fetch origin "${{ github.base_ref }}" --depth=1
+          set -euo pipefail
+          git fetch origin "${{ github.base_ref }}"
           git -c core.quotePath=false diff --name-only -z --diff-filter=ACMR \
-            "origin/${{ github.base_ref }}...HEAD" \
-            | xargs -0 -r bunx @inixiative/atlas check
+            "origin/${{ github.base_ref }}...HEAD" > "$RUNNER_TEMP/changed"
+          xargs -0 -r bunx @inixiative/atlas check < "$RUNNER_TEMP/changed"
