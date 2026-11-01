@@ -6,7 +6,8 @@ on the structural facts* — because atlas only ever asserts what is mechanicall
 how it connects), never maturity or correctness.
 
 It's a Biome-shaped tool: a small CLI plus a `.atlas/` config folder. The tool is generic; **your
-repo defines its own vocabulary.**
+repo defines its own vocabulary**, in any language: the block is written in the file's own comment
+syntax, and a file that can't hold a comment is tagged by its path.
 
 ```ts
 /**
@@ -15,6 +16,12 @@ repo defines its own vocabulary.**
  * @partOf feature:tenancy
  * @uses primitive:authz, infrastructure:redis
  */
+```
+
+```py
+# @atlas
+# @kind service
+# @partOf feature:signing
 ```
 
 ## Why
@@ -30,10 +37,48 @@ hyper-specific label. Keep the vocabulary broad but closed; apply it liberally.
 ## Install
 
 ```bash
-bun add -d @inixiative/atlas
+bun add -d @inixiative/atlas      # a JavaScript/TypeScript repo
+bunx @inixiative/atlas init       # any repo: no package.json or node_modules needed
 ```
 
-atlas is Bun-native (it imports your `.atlas/*.ts` config directly).
+atlas runs on Bun (it imports your `.atlas/*.ts` config directly). The config's own
+`@inixiative/atlas` imports are bound to the atlas that is running, so a Python, Go or docs repo
+needs nothing installed besides Bun.
+
+## Any language
+
+atlas reads one table of comment styles, grouped by how a language writes a comment, and
+`check`, `stamp`, `graph` and the hooks all use it:
+
+| Style | Block | Files |
+|---|---|---|
+| `c` | `/** … */` | `.ts` `.tsx` `.mts` `.cts` `.js` `.jsx` `.mjs` `.cjs` `.go` `.java` `.kt` `.kts` `.rs` `.c` `.h` `.cc` `.cpp` `.hpp` `.cs` `.swift` `.scala` `.dart` `.groovy` `.proto` `.zig` `.css` `.scss` `.less` `.php` |
+| `html` | `<!-- … -->` | `.md` `.mdx` `.markdown` `.html` `.htm` `.xml` `.vue` `.svelte` |
+| `hash` | `# ` lines | `.py` `.pyi` `.rb` `.sh` `.bash` `.zsh` `.fish` `.yaml` `.yml` `.toml` `.ex` `.exs` `.r` `.pl` `.pm` `.tf` `.nix` `.cmake` `.ps1` `Dockerfile` `Makefile` `Gemfile` `Rakefile` `Justfile` `Procfile` |
+| `dash` | `-- ` lines | `.sql` `.lua` `.hs` `.elm` |
+| `semicolon` | `; ` lines | `.clj` `.cljs` `.cljc` `.edn` `.lisp` `.el` `.scm` `.rkt` |
+| `dotdot` | `.. ` lines | `.rst` |
+
+Add files to a style in `.atlas/config.ts`: `comments: { hash: ['.nix', 'Tiltfile'] }` (`.ext` or
+an exact file name; listing one under another style moves it there).
+
+- **Line styles** (`#`, `--`, `;`, `..`): the block is the `@atlas` line plus the axis lines right
+  after it. The first line that isn't an axis line ends it, so a prose comment next to the block is
+  never part of it.
+- **Placement.** A fresh block goes at the top, below what must stay first: a shebang, Python's
+  encoding line, Dockerfile parser directives, Markdown front matter, an XML prolog, `<?php`, CSS
+  `@charset`. In reST it is followed by a blank line.
+- **No comment syntax** (`.json`, `.txt`, `.csv`, images): the file is never edited. The stamp
+  rules that match its path are its tags (`@kind`/`@partOf`; such a file has no `@uses`), and it
+  appears in the graph and the hooks like any other. `coverage` counts these files as "tagged by
+  path".
+- **Which files.** With `include` unset, atlas considers every file in a known comment style
+  plus every file a stamp rule tags by path. Files come from git (tracked, plus untracked files not
+  in `.gitignore`), so generated output and nested worktrees stay out. Outside a git work tree
+  every file is listed. Dot-directories are walked (`.github/`, `.claude/`); `.git`, `.atlas`,
+  `node_modules` and `dist` never are. A file named like source but holding binary is skipped.
+
+atlas maps files, not the functions inside them, in every language.
 
 ## Configure
 
@@ -81,6 +126,7 @@ A complete, commented set you can copy into your repo's `.atlas/` is in
 ## CLI
 
 ```bash
+atlas init        # start a .atlas/: include list for the languages found, kinds, empty concepts
 atlas graph       # reverse indexes: concept → files, file → concepts, doc → concepts
 atlas check       # presence + vocab + reference + thesaurus existence  (the CI command)
 atlas coverage    # unannotated files; @uses curation buckets; unresolved memberships
@@ -102,7 +148,7 @@ line into your agent's system prompt / `CLAUDE.md` / `AGENTS.md` so it navigates
 instead of crawling folders:
 
 > This repo is mapped by **atlas**. To find code by concept instead of by filename: read `MAP.md`
-> for the concept overview; run `bunx atlas graph --json` for the reverse indexes (concept → files via
+> for the concept overview; run `bunx @inixiative/atlas graph --json` for the reverse indexes (concept → files via
 > `@partOf`, concept → consumers via `@uses`); and read a file's top-of-file `@atlas` block
 > (`@kind` / `@partOf` / `@uses`) before its body. Prefer these over `grep` for "what touches X" /
 > "what's part of Y" questions.
@@ -126,11 +172,11 @@ atlas neighbourhood of src/test/factories/userFactory.ts:
 
 factory, 1 of 2 factories in primitive:testFactories
 
-primitive:testFactories — 2 other file(s), 1 consumer(s) via @uses; `bunx atlas query --partOf primitive:testFactories` lists all
+primitive:testFactories — 2 other file(s), 1 consumer(s) via @uses; `bunx @inixiative/atlas query --partOf primitive:testFactories` lists all
   src/test/factories/buildFactory.ts
   src/test/factories/organizationFactory.ts
 
-@uses feature:users — load-bearing dependencies; `bunx atlas query --partOf <concept>` shows what implements each
+@uses feature:users — load-bearing dependencies; `bunx @inixiative/atlas query --partOf <concept>` shows what implements each
 ```
 
 A file of `@kind factory` or `@kind constructor` also gets a line counting that kind in its
@@ -140,7 +186,10 @@ concepts' files are listed.
 
 Install them with `atlas setup` (asks first; `atlas setup --yes` for scripts and agents). It
 merges two `PostToolUse` entries into `.claude/settings.json`, leaves every other key and hook as it
-was, and adds nothing on a second run:
+was, and adds nothing on a second run. A repo whose `package.json` depends on
+`@inixiative/atlas` runs its own install, as below. Any other repo gets
+`cd "$CLAUDE_PROJECT_DIR" && bunx @inixiative/atlas@<version> hook read 2>/dev/null || true`,
+pinned to the atlas that wrote it.
 
 ```json
 {
@@ -241,7 +290,7 @@ listed. Then come the concept-name matches not already shown:
 ```
 atlas concept(s) matching "seeding.*users?":
 
-primitive:testFactories (thesaurus "seed a user") — 3 file(s), 1 consumer(s) via @uses; `bunx atlas query --partOf primitive:testFactories` lists all
+primitive:testFactories (thesaurus "seed a user") — 3 file(s), 1 consumer(s) via @uses; `bunx @inixiative/atlas query --partOf primitive:testFactories` lists all
   read: docs/claude/TESTING.md#factories
   src/test/factories/buildFactory.ts
   src/test/factories/organizationFactory.ts

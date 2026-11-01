@@ -4,6 +4,7 @@ import { runCheck } from './commands/check.ts';
 import { coverage, evaluateCoverageGate, readBaseline } from './commands/coverage.ts';
 import { generate } from './commands/generate.ts';
 import { graph } from './commands/graph.ts';
+import { init } from './commands/init.ts';
 import { flagsToRule, type QueryRule, queryFiles, toQueryRecords } from './commands/query.ts';
 import { buildConceptGraph, buildCoverageReport } from './commands/report.ts';
 import { CLAUDE_SETTINGS, type SetupReport, setupClaudeHooks } from './commands/setup.ts';
@@ -17,6 +18,8 @@ const HELP = `atlas — the map of the codebase
 Usage: atlas <command> [target] [flags]
 
 Commands:
+  init                  start a .atlas/ here: config.ts with an include list for the languages
+                        found, kinds.ts, and an empty concepts.ts
   graph                 reverse indexes: concept → files, file → concepts, doc → concepts
   check [target]        presence + vocab + reference + thesaurus existence (the CI command);
                         a target scopes to a path and skips registry-wide reference checks
@@ -35,7 +38,7 @@ Commands:
 
 Flags:
   --root <dir>          repo root to operate on (default: cwd)
-  --json                machine-readable output (graph/check/coverage/stamp)
+  --json                machine-readable output (init/graph/check/coverage/stamp)
   --stdout              print to stdout instead of writing a file (generate, report)
   --out <dir>           output directory for report files (report; default: root)
   --md / --html         emit only one report format (report; default: both)
@@ -161,8 +164,25 @@ const dispatch = async (
       return done(0);
     }
 
+    case 'init': {
+      const report = await init(root);
+      if (json) log(JSON.stringify(report, null, 2));
+      else {
+        log(`✓ wrote ${report.written.join(', ')}`);
+        log('  languages found:');
+        for (const l of report.languages)
+          log(`    ${l.entry} — ${l.files} file(s), ${l.style} comments`);
+        log('next:');
+        log('  1. add concepts to .atlas/concepts.ts and stamp rules to .atlas/config.ts');
+        log('  2. bunx @inixiative/atlas stamp --write   (writes @atlas blocks from the rules)');
+        log('  3. bunx @inixiative/atlas check           (every file tagged, vocab valid)');
+        log('  4. bunx @inixiative/atlas setup --yes     (Claude Code read/grep hooks)');
+      }
+      return done(0);
+    }
+
     case 'setup': {
-      const plan = setupClaudeHooks(root, { write: false });
+      const plan = setupClaudeHooks(root, { write: false, version: await version() });
       let report = plan;
       let offered = false;
       if (plan.status === 'dry-run') {
@@ -170,7 +190,7 @@ const dispatch = async (
         const confirm = flags.yes === true ? undefined : env.confirm;
         offered = confirm !== undefined;
         const accepted = flags.yes === true || (confirm !== undefined && (await confirm(question)));
-        if (accepted) report = setupClaudeHooks(root, { write: true });
+        if (accepted) report = setupClaudeHooks(root, { write: true, version: await version() });
       }
       if (json) log(JSON.stringify(report, null, 2));
       else logSetup(log, report, offered);
@@ -242,6 +262,7 @@ const dispatch = async (
           log(
             `  unannotated (${c.unannotated.length}):\n${c.unannotated.map((f) => `    ${f}`).join('\n')}`,
           );
+        if (c.pathTagged.length) log(`  tagged by path (no comment style): ${c.pathTagged.length}`);
         log(
           `  @uses — curated ${c.uses.curated.length}, curated-empty ${c.uses.curatedEmpty.length}, proposed ${c.uses.proposed.length}, uncurated ${c.uses.uncurated.length}`,
         );

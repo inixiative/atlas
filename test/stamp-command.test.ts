@@ -6,6 +6,10 @@ import { planStamp, runStamp } from '../src/commands/stamp.ts';
 import type { LoadedConfig } from '../src/config/defineConfig.ts';
 import { partOfFor } from '../src/config/defineConfig.ts';
 import { parseAtlasBlock } from '../src/parse/parseAtlasBlock.ts';
+import { COMMENT_STYLES, COMMENT_TABLE } from '../src/syntax/comments.ts';
+
+const C = COMMENT_STYLES.c;
+const parse = (source: string) => parseAtlasBlock(source, C);
 
 const config: LoadedConfig = {
   kinds: [],
@@ -17,13 +21,15 @@ const config: LoadedConfig = {
   ],
   ignore: [],
   include: ['src/**/*.ts'],
+  comments: COMMENT_TABLE,
   references: {},
 };
 
 const files = [
-  { path: 'src/modules/billing/controllers/create.ts', source: 'export const x = 1;\n' },
+  { path: 'src/modules/billing/controllers/create.ts', style: C, source: 'export const x = 1;\n' },
   {
     path: 'src/modules/billing/services/charge.ts',
+    style: C,
     source: '/**\n * @atlas\n * @kind service\n */\nx;\n',
   },
 ];
@@ -33,11 +39,11 @@ describe('planStamp', () => {
     const plan = planStamp(files, config, 'additive');
     expect(plan.length).toBe(2);
     const create = plan.find((c) => c.path.endsWith('create.ts'));
-    expect(parseAtlasBlock(create!.after)?.kind).toEqual(['controller']);
-    expect(parseAtlasBlock(create!.after)?.partOf).toEqual(['feature:billing']);
+    expect(parse(create!.after)?.kind).toEqual(['controller']);
+    expect(parse(create!.after)?.partOf).toEqual(['feature:billing']);
     const charge = plan.find((c) => c.path.endsWith('charge.ts'));
-    expect(parseAtlasBlock(charge!.after)?.kind).toEqual(['service']); // preserved
-    expect(parseAtlasBlock(charge!.after)?.partOf).toEqual(['feature:billing']); // added
+    expect(parse(charge!.after)?.kind).toEqual(['service']); // preserved
+    expect(parse(charge!.after)?.partOf).toEqual(['feature:billing']); // added
   });
 
   test('targeting scopes the plan to a folder', () => {
@@ -48,6 +54,7 @@ describe('planStamp', () => {
   test('is idempotent — re-planning already-stamped sources yields no changes', () => {
     const stamped = planStamp(files, config, 'additive').map((c) => ({
       path: c.path,
+      style: C,
       source: c.after,
     }));
     // the untouched file (none here) plus restamped sources → nothing left to do
@@ -77,9 +84,7 @@ describe('runStamp (write to disk)', () => {
 
       const written = await runStamp(dir, { mode: 'additive', write: true });
       expect(written.changes.length).toBe(1);
-      expect(parseAtlasBlock(await Bun.file(resolve(dir, file)).text())?.kind).toEqual([
-        'controller',
-      ]);
+      expect(parse(await Bun.file(resolve(dir, file)).text())?.kind).toEqual(['controller']);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

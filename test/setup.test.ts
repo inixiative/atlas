@@ -1,19 +1,29 @@
 import { describe, expect, test } from 'bun:test';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runCli } from '../src/cli.ts';
-import { atlasHookEntry, hookCommandFor, setupClaudeHooks } from '../src/commands/setup.ts';
+import {
+  atlasHookEntry,
+  hookCommandFor,
+  runnerFor,
+  setupClaudeHooks,
+} from '../src/commands/setup.ts';
 
 type Settings = {
   hooks: Record<string, { matcher?: string; hooks: { command: string }[] }[]>;
   [key: string]: unknown;
 };
 
+// A JavaScript repo that depends on atlas, so the hooks run its own install.
 const withRepo = async (fn: (root: string) => Promise<void> | void): Promise<void> => {
   const root = await mkdtemp(join(tmpdir(), 'atlas-setup-'));
   mkdirSync(join(root, '.atlas'));
+  writeFileSync(
+    join(root, 'package.json'),
+    JSON.stringify({ devDependencies: { '@inixiative/atlas': '^0.5.0' } }),
+  );
   try {
     await fn(root);
   } finally {
@@ -30,6 +40,23 @@ const writeSettings = (root: string, text: string): void => {
 };
 
 describe('setupClaudeHooks', () => {
+  test('a repo that does not depend on atlas runs it through bunx, pinned', async () => {
+    await withRepo((root) => {
+      rmSync(join(root, 'package.json'));
+      setupClaudeHooks(root, { write: true, version: '0.5.0' });
+      const runner = { installed: false, version: '0.5.0' } as const;
+      expect(runnerFor(root, '0.5.0')).toEqual(runner);
+      expect<unknown>(readSettings(root)).toEqual({
+        hooks: { PostToolUse: [atlasHookEntry('read', runner), atlasHookEntry('grep', runner)] },
+      });
+      expect(hookCommandFor('read', runner)).toBe(
+        'cd "$CLAUDE_PROJECT_DIR" && bunx @inixiative/atlas@0.5.0 hook read 2>/dev/null || true',
+      );
+      // already present (either runner) → a second run adds nothing
+      expect(setupClaudeHooks(root, { write: true, version: '0.6.0' }).status).toBe('unchanged');
+    });
+  });
+
   test('creates .claude/settings.json with the Read and Grep entries', async () => {
     await withRepo((root) => {
       const report = setupClaudeHooks(root, { write: true });

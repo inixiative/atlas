@@ -14,6 +14,9 @@ export type Coverage = {
     proposed: string[]; // tentative @uses? — patcher proposed, awaiting acceptance
     curated: string[]; // real @uses values
   };
+  // files with no comment style, tagged by their path; they can't carry @uses, so they sit
+  // outside the @uses buckets.
+  pathTagged: string[];
   // membership captures (partOfFor) that matched no concept — fillable signal, not an error.
   unresolved: { file: string; category: string; value: string }[];
 };
@@ -69,10 +72,13 @@ export const coverage = (a: Analysis): Coverage => {
     curated: [] as string[],
   };
   const unresolved: Coverage['unresolved'] = [];
+  const pathTagged: string[] = [];
 
-  for (const { path, annotation } of a.files) {
+  for (const { path, tagging, annotation } of a.files) {
     if (!annotation) {
       unannotated.push(path);
+    } else if (tagging === 'path') {
+      pathTagged.push(path);
     } else {
       const bucket =
         annotation.usesState === 'absent'
@@ -94,6 +100,7 @@ export const coverage = (a: Analysis): Coverage => {
     annotated: a.files.length - unannotated.length,
     unannotated,
     uses,
+    pathTagged,
     unresolved,
   };
 };

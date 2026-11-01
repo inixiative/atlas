@@ -1,7 +1,8 @@
 # Example `.atlas/` config
 
 Copy these files into a **`.atlas/`** folder at your repo root, then adjust them to your
-layout. This is the entire configuration surface — atlas ships the `@kind` defaults; **your repo
+layout. `bunx @inixiative/atlas init` writes a starter from them: `config.ts` with an include list
+for the languages your repo has, this `kinds.ts`, and `concepts.ts` with no concepts yet. This is the entire configuration surface — atlas ships the `@kind` defaults; **your repo
 owns the concept registry.**
 
 ```
@@ -24,5 +25,5 @@ concept that exists, that a `@kind` is in your vocab, and that referenced docs r
 | [`kinds.ts`](./kinds.ts) | rarely | only when a role the defaults don't cover shows up |
 | [`thesaurus.ts`](./thesaurus.ts) | when a search misses | add the words you searched with to the concept you found |
 
-After copying, `bunx atlas stamp --write` fills `@kind`/`@partOf` from the rules, `bunx atlas check`
-gates it, and `bunx atlas generate` writes `MAP.md`.
+After copying, `bunx @inixiative/atlas stamp --write` fills `@kind`/`@partOf` from the rules, `bunx @inixiative/atlas check`
+gates it, and `bunx @inixiative/atlas generate` writes `MAP.md`.

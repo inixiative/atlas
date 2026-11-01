@@ -10,10 +10,10 @@ staged=$(git diff --cached --name-only --diff-filter=ACM \
 
 status=0
 for dir in $staged; do
-  bunx atlas check "$dir" || status=1
+  bunx @inixiative/atlas check "$dir" || status=1
 done
 
 if [ "$status" -ne 0 ]; then
-  echo "atlas: fix the annotations above, or run 'bunx atlas stamp <dir> --write' to fill them."
+  echo "atlas: fix the annotations above, or run 'bunx @inixiative/atlas stamp <dir> --write' to fill them."
 fi
 exit "$status"

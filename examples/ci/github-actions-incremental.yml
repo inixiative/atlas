@@ -27,6 +27,6 @@ jobs:
           [ -z "$changed" ] && { echo "no source changes"; exit 0; }
           status=0
           for dir in $changed; do
-            bunx atlas check "$dir" || status=1
+            bunx @inixiative/atlas check "$dir" || status=1
           done
           exit $status

@@ -21,23 +21,23 @@ jobs:
 
       # ── Annotation check ────────────────────────────────────────────────
       # Rollout (DEV-003 Phase 4) — start warn-only, flip to enforcing later:
-      #   warn-only:  bunx atlas check --warn-only   # prints, never fails CI
-      #   enforcing:  bunx atlas check               # fails CI on any problem
+      #   warn-only:  bunx @inixiative/atlas check --warn-only   # prints, never fails CI
+      #   enforcing:  bunx @inixiative/atlas check               # fails CI on any problem
       - name: atlas check
-        run: bunx atlas check
+        run: bunx @inixiative/atlas check
 
       # ── Coverage gate ───────────────────────────────────────────────────
       # Ratchet: the unannotated count may not exceed the committed baseline
       # (.atlas/coverage-baseline.json), so coverage can only hold or improve.
       # Bump the baseline as you back-fill:  atlas coverage --update-baseline
       - name: atlas coverage (ratchet)
-        run: bunx atlas coverage --ratchet
+        run: bunx @inixiative/atlas coverage --ratchet
       # Or, once coverage is high, swap the ratchet for a percentage floor:
-      #   run: bunx atlas coverage --min 80
+      #   run: bunx @inixiative/atlas coverage --min 80
 
       # ── MAP.md freshness ────────────────────────────────────────────────
       # The committed map must match the annotated tree, or the PR is stale.
       - name: MAP.md is current
         run: |
-          bunx atlas generate
+          bunx @inixiative/atlas generate
           git diff --exit-code MAP.md

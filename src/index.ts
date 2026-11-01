@@ -4,8 +4,10 @@ export type { Graph } from './commands/graph.ts';
 export {
   atlasHookEntry,
   CLAUDE_SETTINGS,
+  type HookRunner,
   hookCommandFor,
   mergeAtlasHooks,
+  runnerFor,
   type SetupReport,
   setupClaudeHooks,
 } from './commands/setup.ts';

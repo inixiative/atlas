@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { resolve } from 'node:path';
 import { analyze } from '../src/analyze.ts';
 import { buildConceptGraph, buildCoverageReport } from '../src/commands/report.ts';
+import { COMMENT_TABLE } from '../src/syntax/comments.ts';
 
 const MINI = resolve(import.meta.dir, 'fixtures/mini');
 
@@ -36,11 +37,13 @@ describe('buildCoverageReport', () => {
         stamp: [],
         ignore: [],
         include: [],
+        comments: COMMENT_TABLE,
         references: {},
       },
       files: [
         {
           path: 'x.ts',
+          tagging: 'inline',
           annotation: {
             kind: ['service'],
             partOf: ['feature:a', 'feature:b'],

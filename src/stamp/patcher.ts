@@ -4,6 +4,7 @@ import {
   parseAtlasBlock,
   type UsesState,
 } from '../parse/parseAtlasBlock.ts';
+import { type CommentStyle, preambleEnd } from '../syntax/comments.ts';
 
 export type BlockSpec = {
   kind?: string[];
@@ -24,19 +25,20 @@ export type StampInput = {
 
 export type StampMode = 'additive' | 'overwrite';
 
-const line = (axis: string, values: string[]): string => ` * @${axis} ${values.join(', ')}`;
+const axis = (name: string, values: string[]): string => `@${name} ${values.join(', ')}`;
 
-// Render a canonical `@atlas` block. Axis order is fixed for diff-stability.
-export const renderBlock = (spec: BlockSpec): string => {
-  const lines = ['/**', spec.pinned ? ' * @atlas pin' : ' * @atlas'];
-  if (spec.kind?.length) lines.push(line('kind', spec.kind));
-  if (spec.partOf?.length) lines.push(line('partOf', spec.partOf));
-  if (spec.usesState === 'none') lines.push(' * @uses none');
-  else if (spec.usesState === 'proposed' && spec.uses?.length) lines.push(line('uses?', spec.uses));
-  else if (spec.usesState === 'values' && spec.uses?.length) lines.push(line('uses', spec.uses));
-  if (spec.constructs?.length) lines.push(line('constructs', spec.constructs));
-  lines.push(' */');
-  return lines.join('\n');
+// Render a canonical `@atlas` block in the file's comment style. Axis order is fixed for
+// diff-stability.
+export const renderBlock = (spec: BlockSpec, style: CommentStyle): string => {
+  const axes = [spec.pinned ? '@atlas pin' : '@atlas'];
+  if (spec.kind?.length) axes.push(axis('kind', spec.kind));
+  if (spec.partOf?.length) axes.push(axis('partOf', spec.partOf));
+  if (spec.usesState === 'none') axes.push('@uses none');
+  else if (spec.usesState === 'proposed' && spec.uses?.length) axes.push(axis('uses?', spec.uses));
+  else if (spec.usesState === 'values' && spec.uses?.length) axes.push(axis('uses', spec.uses));
+  if (spec.constructs?.length) axes.push(axis('constructs', spec.constructs));
+  if (style.shape === 'line') return axes.map((a) => `${style.prefix} ${a}`).join('\n');
+  return [style.writeOpen, ...axes.map((a) => `${style.line}${a}`), style.writeClose].join('\n');
 };
 
 const union = (a: string[] = [], b: string[] = []): string[] => [...new Set([...a, ...b])];
@@ -45,29 +47,28 @@ const detectEol = (source: string): string => (source.includes('\r\n') ? '\r\n' 
 
 // Renders the canonical (LF) block, then matches the file's existing EOL so a
 // CRLF file round-trips without churn or mixed endings.
-const renderWithEol = (spec: BlockSpec, eol: string): string =>
-  eol === '\n' ? renderBlock(spec) : renderBlock(spec).replaceAll('\n', eol);
-
-// A fresh block belongs at the top, but below a shebang (moving it above would
-// break an executable script).
-const SHEBANG = /^#![^\n]*\n/;
+const renderWithEol = (spec: BlockSpec, style: CommentStyle, eol: string): string =>
+  eol === '\n' ? renderBlock(spec, style) : renderBlock(spec, style).replaceAll('\n', eol);
 
 const carryUses = (existing: AtlasAnnotation | null): Pick<BlockSpec, 'uses' | 'usesState'> =>
   existing ? { uses: existing.uses, usesState: existing.usesState } : {};
 
 // Merge a stamp into a file's source per mode. Returns the new content and
 // whether anything changed (idempotent: a no-op re-stamp reports changed=false).
+// `path` decides where a fresh block goes (below the file's preamble).
 export const applyStamp = (
   source: string,
   resolved: StampInput,
+  file: { path: string; style: CommentStyle },
   mode: StampMode = 'additive',
 ): { content: string; changed: boolean } => {
-  const existing = parseAtlasBlock(source);
-  const located = locateAtlasBlock(source);
+  const { style } = file;
+  const existing = parseAtlasBlock(source, style);
+  const located = locateAtlasBlock(source, style);
   const eol = detectEol(source);
 
-  // No block yet — insert a fresh one at the top (uses omitted = uncurated),
-  // but below a shebang so an executable file keeps working.
+  // No block yet — insert a fresh one at the top (uses omitted = uncurated), but below
+  // the lines that must stay first (a shebang, front matter, `<?php`; see preambleEnd).
   if (!existing || !located) {
     const spec: BlockSpec = {
       kind: resolved.kind ?? [],
@@ -76,12 +77,11 @@ export const applyStamp = (
     };
     const hasAny = [spec.kind, spec.partOf, spec.constructs].some((v) => v && v.length);
     if (!hasAny) return { content: source, changed: false };
-    const block = renderWithEol(spec, eol);
-    const shebang = SHEBANG.exec(source)?.[0];
-    const content = shebang
-      ? shebang + block + eol + source.slice(shebang.length)
-      : block + eol + source;
-    return { content, changed: true };
+    const block = renderWithEol(spec, style, eol);
+    const at = preambleEnd(file.path, source);
+    const rest = source.slice(at);
+    const blank = style.shape === 'line' && style.blankAfter && !/^\r?\n/.test(rest) ? eol : '';
+    return { content: source.slice(0, at) + block + eol + blank + rest, changed: true };
   }
 
   // Overwrite is exempt on a pinned block — the hand-curated overload wins.
@@ -111,7 +111,7 @@ export const applyStamp = (
   // @partOf is sorted so a merged block matches a freshly-stamped one (stampFor sorts).
   merged.partOf = [...(merged.partOf ?? [])].sort();
 
-  const block = renderWithEol(merged, eol);
+  const block = renderWithEol(merged, style, eol);
   if (block === located.text) return { content: source, changed: false };
   return {
     content: source.slice(0, located.start) + block + source.slice(located.end),

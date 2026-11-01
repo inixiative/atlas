@@ -1,8 +1,12 @@
 import { defineConfig, partOfFor } from '@inixiative/atlas/config';
 
 export default defineConfig({
-  // Files atlas considers (everything else is invisible to it).
-  include: ['apps/**/*.ts', 'apps/**/*.tsx', 'packages/**/*.ts'],
+  // Files atlas considers (everything else is invisible to it). Leave it unset to consider every
+  // file in a comment style atlas knows, plus every file a stamp rule tags by its path.
+  include: ['apps/**/*.ts', 'apps/**/*.tsx', 'packages/**/*.ts', 'apps/*/package.json'],
+
+  // More files per comment style, by `.ext` or exact name (atlas's table covers the common ones).
+  comments: { hash: ['Tiltfile'] },
 
   // Files exempt from the presence check and from stamping (barrels, tests, generated).
   ignore: [
@@ -53,6 +57,10 @@ export default defineConfig({
     { include: 'apps/api/src/modules/$1/**', partOf: partOfFor('module', '$1') },
     { include: 'apps/api/src/integrations/$1/**', partOf: partOfFor('integration', '$1') },
     { include: 'packages/$1/**', partOf: partOfFor('package', '$1') },
+
+    // A file with no comment syntax (.json, .txt, images) is never edited: the rules that match
+    // its path are its tags. Add its glob to `include` (or leave `include` unset).
+    { include: 'apps/*/package.json', kind: 'config' },
   ],
 
   // Resolve a reference field's value to a repo-relative path so `atlas check`

@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.5.0
+
+Atlas works on any repo: any language, docs and plain files included.
+
+- **Comment styles.** One table (`src/syntax/comments.ts`) groups languages by how they write a
+  comment: `c` (`/** */`), `html` (`<!-- -->`), `hash` (`#`), `dash` (`--`), `semicolon` (`;`),
+  `dotdot` (`..`, reST). The parser, the stamper, the walker and the hooks all read it. A repo adds
+  files with `comments: { hash: ['.nix', 'Tiltfile'] }` in `.atlas/config.ts`; an unknown style is
+  refused.
+- **Line-comment blocks** are the `@atlas` line plus the axis lines right after it; the first other
+  line ends the block, so neighbouring prose is never rewritten.
+- **The stamper** writes the block in the file's style, below a shebang, Python's encoding line,
+  Dockerfile parser directives, Markdown front matter, an XML prolog, `<?php` or CSS `@charset`;
+  reST gets a blank line after it.
+- **Files with no comment syntax** (`.json`, `.txt`, images) are tagged by the stamp rules that
+  match their path, never edited. `FileRecord.tagging` is `inline` or `path`; `coverage` lists them
+  as `pathTagged`; `check` says "no comment style for this file and no stamp rule tags its path".
+- **Walking.** `include` unset now means every file in a known comment style plus every file a
+  rule tags. Files come from `git ls-files` (tracked, and untracked files not in `.gitignore`), so
+  generated output and nested worktrees stay out, and Zealot's graph builds in 0.64 s instead of
+  3.5 s; outside a git work tree every file is listed. Dot-directories are walked (`.github/`,
+  `.claude/`); `.git`, `.atlas`, `node_modules`, `dist` never are. A binary file with a source
+  extension is skipped.
+- **`atlas init`** detects the repo's languages and writes `.atlas/config.ts` (an include list for
+  them), `kinds.ts` and `concepts.ts` (no concepts) from `examples/atlas-config/`.
+- **No install needed.** `.atlas/*.ts` imports of `@inixiative/atlas` are bound to the running
+  atlas, so `bunx @inixiative/atlas …` works in a repo with no `package.json`. `atlas setup` writes
+  `bunx @inixiative/atlas@<version> hook …` there, and the installed binary where `package.json`
+  depends on atlas.
+- Hook and docs hints say `bunx @inixiative/atlas`, not `bunx atlas` (an unrelated npm package).
+- Breaking (no shims): `parseAtlasBlock(source, style)`, `locateAtlasBlock(source, style)`,
+  `renderBlock(spec, style)`, `applyStamp(source, resolved, { path, style }, mode)`,
+  `walkFiles(root, ignore, keep)`; `LoadedConfig.include` is `string[] | null` and gains `comments`;
+  `DEFAULT_INCLUDE` is gone. A block comment still needs `@atlas` on its own line, so a block a
+  formatter collapsed onto one line is still reported as missing.
+
 ## 0.4.1
 
 - `atlas generate`: a concept's kind breakdown counts `constructor` correctly. The counts lived in
