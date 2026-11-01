@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -1012,5 +1012,47 @@ describe('round-6 review', () => {
       });
       expect(run.exitCode).not.toBe(0);
     });
+  });
+});
+
+describe('round-7 review', () => {
+  test('target edge cases: dangling symlink, `..odd` name, on-disk case', async () => {
+    await withRepo(
+      {
+        '.atlas/config.ts': `export default { include: ['src/*.py'] };\n`,
+        'src/a.py': 'x\n',
+        '..odd/b.py': 'y\n',
+      },
+      async (root) => {
+        symlinkSync('gone.py', join(root, 'src/dangling.py'));
+        expect(resolveTargets(root, ['src/dangling.py', '..odd'])).toEqual([
+          'src/dangling.py',
+          '..odd',
+        ]);
+        // on a case-insensitive disk (macOS default) a differently-cased target scopes to the real path
+        if (existsSync(join(root, 'SRC')))
+          expect(resolveTargets(root, ['SRC/a.py'])).toEqual(['src/a.py']);
+      },
+    );
+  });
+
+  test('check and stamp refuse a missing target on the command line', async () => {
+    await withRepo({ '.atlas/config.ts': `export default {};\n`, 'a.py': 'x\n' }, async (root) => {
+      for (const command of ['check', 'stamp']) {
+        const result = await runCli([command, 'nope.py', '--root', root], { cwd: root });
+        expect({ command, code: result.code }).toEqual({ command, code: 1 });
+        expect(result.out).toContain('no such file or folder: nope.py');
+      }
+    });
+  });
+
+  test('UTF-16 without a byte-order mark is not read (it would be stamped as UTF-8)', async () => {
+    const noBom = new Uint8Array([...'Write-Host 1\n'].flatMap((c) => [c.charCodeAt(0), 0]));
+    await withRepo(
+      { '.atlas/config.ts': `export default { include: ['*.ps1'] };\n`, 'run.ps1': noBom },
+      async (root) => {
+        expect((await analyze(root)).files).toEqual([]);
+      },
+    );
   });
 });

@@ -35,13 +35,13 @@ Atlas works on any repo: any language, docs and plain files included.
   `.claude/`); `.git`, `.atlas` (at any depth), `node_modules`, `dist`, submodules and symlinks
   never are, nor atlas's own outputs (`MAP.md` at the root, `COVERAGE.md` and `atlas.html` at any
   depth) or `pnpm-lock.yaml`.
-  A binary (NUL bytes and not valid UTF-8) or UTF-32 file with a source extension is
+  A binary (NUL bytes and not valid UTF-8), UTF-32 or BOM-less UTF-16 file with a source extension is
   skipped; valid UTF-8 holding a NUL is read. A UTF-16 file with a BOM is read,
   and a stamped file is written back in its own encoding (UTF-8, UTF-8 with a BOM, UTF-16); a
   file whose bytes aren't valid in its encoding (Windows-1252) is never stamped (`skipped`).
 - **Targets.** `check` and `stamp` take any number of files or folders (`./src`, `src/`, `.`,
-  absolute paths), resolved against the repo root; one that doesn't exist or lies outside it is
-  an error. The CI examples check exactly the changed files (one atlas run, or several when xargs
+  absolute paths), resolved against the repo root in their on-disk spelling; one that doesn't exist
+  or lies outside it is an error (`atlas stamp all` now fails: write `atlas stamp`). The CI examples check exactly the changed files (one atlas run, or several when xargs
   splits a very long list), and fail when git fails rather than checking nothing.
 - **`atlas init`** detects the repo's languages (include globs spelled as the files are, e.g.
   `**/*.R`) and writes `.atlas/config.ts` (an include list for

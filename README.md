@@ -100,7 +100,8 @@ an exact file name; listing one under another style moves it there).
   `node_modules` and `dist` never are, and neither are submodules, symlinks, atlas's own outputs
   (`MAP.md` at the root; `COVERAGE.md` and `atlas.html` at any depth, wherever `report --out`
   put them) or `pnpm-lock.yaml`. A file named like source but
-  holding binary (NUL bytes and not valid UTF-8), or stored as UTF-32, is skipped. A UTF-16 file with a byte-order mark is read,
+  holding binary (NUL bytes and not valid UTF-8), or stored as UTF-32 or as UTF-16 without a
+  byte-order mark, is skipped. A UTF-16 file with a byte-order mark is read,
   and stamping writes a file back in its own encoding (UTF-8, UTF-8 with a byte-order mark,
   UTF-16). A file whose bytes aren't valid in its encoding (a Windows-1252 `.ps1`) is read for
   `check` and `graph`, but `stamp` leaves it alone and lists it under `skipped`: writing it back
@@ -157,16 +158,16 @@ A complete, commented set you can copy into your repo's `.atlas/` is in
 ## CLI
 
 ```bash
-atlas init        # start a .atlas/: include list for the languages found, kinds, empty concepts
-atlas graph       # reverse indexes: concept → files, file → concepts, doc → concepts
-atlas check       # presence + vocab + reference + thesaurus existence  (the CI command)
-atlas coverage    # unannotated files; @uses curation buckets; unresolved memberships
-atlas generate    # write MAP.md from the annotated tree
-atlas report      # coverage gaps + concept graph → COVERAGE.md (Mermaid) and atlas.html (Cytoscape)
-atlas stamp [dir] # write/refresh @atlas blocks from the rules (the patcher; dry-run by default)
-atlas hook read   # Claude Code PostToolUse hook: the concept neighbourhood of the file just read
-atlas hook grep   # Claude Code PostToolUse hook: the concepts a grep pattern names
-atlas setup       # offer to add both hooks to .claude/settings.json (--yes: no prompt)
+atlas init            # start a .atlas/: include list for the languages found, kinds, empty concepts
+atlas graph           # reverse indexes: concept → files, file → concepts, doc → concepts
+atlas check [paths…]  # presence + vocab + reference + thesaurus existence  (the CI command)
+atlas coverage        # unannotated files; @uses curation buckets; unresolved memberships
+atlas generate        # write MAP.md from the annotated tree
+atlas report          # coverage gaps + concept graph → COVERAGE.md (Mermaid) and atlas.html (Cytoscape)
+atlas stamp [paths…]  # write/refresh @atlas blocks from the rules (the patcher; dry-run by default)
+atlas hook read       # Claude Code PostToolUse hook: the concept neighbourhood of the file just read
+atlas hook grep       # Claude Code PostToolUse hook: the concepts a grep pattern names
+atlas setup           # offer to add both hooks to .claude/settings.json (--yes: no prompt)
 ```
 
 Common flags: `--root <dir>`, `--json`, `generate --stdout`, `stamp --write`, `stamp --overwrite`,
@@ -396,7 +397,7 @@ Absence is meaningful, so atlas leaves `@uses` out of stamping entirely:
 Blanks are fillable on demand — the `eslint --fix` shape. Always **dry-run by default**; pass
 `--write` to apply.
 
-- **Targeting** — `all` (default), or any number of files and folders (`src/`, `./src`, `.`),
+- **Targeting** — the whole repo by default, or any number of files and folders (`src/`, `./src`, `.`),
   each resolved against the repo root; a target that doesn't exist or lies outside it is an error.
 - **Additive (default)** — fill only what's absent; never modify an existing tag; never touch `@uses`.
 - **Overwrite (`--overwrite`)** — resync the derivable axes (`@kind`/`@partOf`) to the current

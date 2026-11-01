@@ -1,5 +1,5 @@
-import { existsSync } from 'node:fs';
-import { isAbsolute, relative, resolve } from 'node:path';
+import { lstatSync, realpathSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { consideredFiles, encodeText, readText, type TextEncoding } from '../analyze.ts';
 import type { LoadedConfig } from '../config/defineConfig.ts';
 import { loadConfig } from '../config/load.ts';
@@ -30,15 +30,26 @@ export const inScope = (path: string, targets: string[] = []): boolean => {
 
 // Command-line targets as repo-relative paths. A target is resolved against the repo root (an
 // absolute path works too) and must exist inside it: a typo'd or outside path would otherwise
-// scope a check to nothing and pass.
+// scope a check to nothing and pass. It is read in its on-disk spelling, so `SRC/a.ts` on a
+// case-insensitive disk still scopes to `src/a.ts`.
+const onDisk = (path: string): string => {
+  const link = lstatSync(path).isSymbolicLink();
+  return link
+    ? join(realpathSync.native(dirname(path)), basename(path))
+    : realpathSync.native(path);
+};
 export const resolveTargets = (root: string, raw: string[]): string[] =>
   raw.map((target) => {
     const absolute = resolve(root, target);
-    const rel = relative(resolve(root), absolute).replaceAll('\\', '/');
-    if (rel.startsWith('..') || isAbsolute(rel))
+    try {
+      lstatSync(absolute);
+    } catch {
+      throw new Error(`no such file or folder: ${target}`);
+    }
+    const rel = relative(onDisk(resolve(root)), onDisk(absolute));
+    if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel))
       throw new Error(`target is outside the repo root: ${target}`);
-    if (!existsSync(absolute)) throw new Error(`no such file or folder: ${target}`);
-    return rel === '' ? '.' : rel;
+    return rel === '' ? '.' : rel.replaceAll(sep, '/');
   });
 
 // Pure: what stamping a file WOULD do, or null if it's already up to date.

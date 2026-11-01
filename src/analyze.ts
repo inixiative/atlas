@@ -64,11 +64,13 @@ const BOMS: Record<Exclude<TextEncoding, 'utf-8'>, number[]> = {
   'utf-16be': [0xfe, 0xff],
 };
 
+const nulCount = (bytes: Uint8Array): number => bytes.reduce((n, b) => (b === 0 ? n + 1 : n), 0);
+
 const startsWith = (bytes: Uint8Array, prefix: number[]): boolean =>
   prefix.every((byte, i) => bytes[i] === byte);
 
 // A file's text and encoding, or null for a file named like source but holding binary (a `.ts`
-// video stream: NUL bytes and not valid UTF-8) or stored as UTF-32. A NUL alone isn't binary:
+// video stream: NUL bytes and not valid UTF-8) or stored as UTF-32 or as UTF-16 without a BOM. A NUL alone isn't binary:
 // valid UTF-8 source may hold one. `exact` is false when the bytes aren't valid in their
 // encoding (a Windows-1252 `.ps1`): the text is still read, with U+FFFD for the bad bytes, so
 // check and graph work, but the stamper must not write it back.
@@ -81,6 +83,9 @@ export const readText = async (
   let encoding: TextEncoding = startsWith(bytes, BOMS['utf-8-bom']) ? 'utf-8-bom' : 'utf-8';
   for (const utf16 of ['utf-16le', 'utf-16be'] as const)
     if (startsWith(bytes, BOMS[utf16])) encoding = utf16;
+  // UTF-16 without a byte-order mark: every other byte of ASCII-range text is NUL, which is
+  // valid UTF-8, so it would be stamped as UTF-8 and mixed. Text holds at most a stray NUL.
+  if (encoding === 'utf-8' && nulCount(bytes) * 10 > bytes.length) return null;
   const label = encoding === 'utf-8-bom' ? 'utf-8' : encoding;
   try {
     return { text: new TextDecoder(label, { fatal: true }).decode(bytes), encoding, exact: true };
