@@ -37,7 +37,13 @@ export {
   renderConceptMatches,
   renderNeighbourhood,
 } from './hook/neighbourhood.ts';
-export { type AtlasAnnotation, parseAtlasBlock, type UsesState } from './parse/parseAtlasBlock.ts';
+export {
+  type AtlasAnnotation,
+  type LocatedBlock,
+  locateAtlasBlock,
+  parseAtlasBlock,
+  type UsesState,
+} from './parse/parseAtlasBlock.ts';
 export { invert } from './registry/invert.ts';
 export {
   type ConceptEntry,
@@ -47,4 +53,16 @@ export {
   type Thesaurus,
   type ThesaurusEntry,
 } from './registry/types.ts';
+export {
+  COMMENT_STYLES,
+  COMMENT_TABLE,
+  type CommentStyle,
+  type CommentStyleName,
+  type CommentTable,
+  entryFor,
+  mergeCommentTable,
+  preambleEnd,
+  styleFor,
+  styleNameFor,
+} from './syntax/comments.ts';
 export { DEFAULT_KINDS, type DefaultKind } from './vocab/kinds.ts';

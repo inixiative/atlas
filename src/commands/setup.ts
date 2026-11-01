@@ -28,7 +28,7 @@ export const hookCommandFor = (
 ): string => {
   if (runner.installed) return `[ -e ${ATLAS_BIN} ] && bun ${ATLAS_BIN} hook ${event} || true`;
   const pkg = runner.version ? `@inixiative/atlas@${runner.version}` : '@inixiative/atlas';
-  return `cd "$CLAUDE_PROJECT_DIR" && bunx ${pkg} hook ${event} 2>/dev/null || true`;
+  return `cd "$CLAUDE_PROJECT_DIR" && bunx ${pkg} hook ${event} || true`;
 };
 
 // A repo installs atlas when its package.json depends on it.
@@ -58,25 +58,41 @@ const ATLAS_HOOK = (event: HookEvent) =>
 const hasAtlasHook = (groups: MatcherGroup[], event: HookEvent): boolean =>
   groups.some((g) => (g.hooks ?? []).some((h) => ATLAS_HOOK(event).test(h.command ?? '')));
 
+// A command in one of the two forms setup writes. Only these are refreshed; a hand-written
+// atlas hook is the repo's own and is left alone.
+const WRITTEN_BY_SETUP = (event: HookEvent) =>
+  new RegExp(
+    `^(?:\\[ -e "\\$CLAUDE_PROJECT_DIR/node_modules/\\.bin/atlas" \\] && bun "\\$CLAUDE_PROJECT_DIR/node_modules/\\.bin/atlas"|cd "\\$CLAUDE_PROJECT_DIR" && bunx @inixiative/atlas(?:@[\\w.-]+)?) hook ${event} (?:2>/dev/null )?\\|\\| true$`,
+  );
+
 // Merge the two PostToolUse entries into existing settings without touching anything
 // else: an existing group for the same matcher gains the command; otherwise a new group
-// is appended. An entry already present (any matcher group) is left alone.
+// is appended. An atlas entry already present is left alone, unless setup wrote it and it
+// no longer matches this repo (a pinned version after an upgrade, bunx after atlas was
+// installed): that one is refreshed in place.
 export const mergeAtlasHooks = (
   settings: ClaudeSettings,
   runner?: HookRunner,
-): { added: HookEvent[] } => {
+): { added: HookEvent[]; refreshed: HookEvent[] } => {
   settings.hooks ??= {};
   settings.hooks.PostToolUse ??= [];
   const groups = settings.hooks.PostToolUse;
   const added: HookEvent[] = [];
+  const refreshed: HookEvent[] = [];
   for (const event of HOOK_EVENTS) {
+    const want = hookCommandFor(event, runner);
+    const stale = groups
+      .flatMap((g) => g.hooks ?? [])
+      .filter((h) => h.command !== want && WRITTEN_BY_SETUP(event).test(h.command ?? ''));
+    for (const hook of stale) hook.command = want;
+    if (stale.length > 0) refreshed.push(event);
     if (hasAtlasHook(groups, event)) continue;
     const same = groups.find((g) => g.matcher === HOOKS[event].matcher)?.hooks;
     if (Array.isArray(same)) same.push(hookCommand(event, runner));
     else groups.push(atlasHookEntry(event, runner));
     added.push(event);
   }
-  return { added };
+  return { added, refreshed };
 };
 
 // The hand-copied predecessors mix gloss and atlas; once atlas's own hook is in, their
@@ -116,8 +132,9 @@ const settingsShapeError = (settings: ClaudeSettings): string | undefined => {
 export type SetupReport = {
   settings: string;
   status: 'created' | 'updated' | 'unchanged' | 'dry-run';
-  // with status dry-run: the entries a write would add
+  // with status dry-run: the entries a write would add, and those it would refresh
   added: HookEvent[];
+  refreshed: HookEvent[];
   notes: string[];
 };
 
@@ -149,11 +166,12 @@ export const setupClaudeHooks = (
   for (const legacy of legacyHooks(settings))
     notes.push(`legacy hook still configured: ${legacy} (its atlas half duplicates atlas hook)`);
 
-  const { added } = mergeAtlasHooks(settings, runnerFor(root, options.version));
-  if (added.length === 0) return { settings: CLAUDE_SETTINGS, status: 'unchanged', added, notes };
-  if (!options.write) return { settings: CLAUDE_SETTINGS, status: 'dry-run', added, notes };
+  const { added, refreshed } = mergeAtlasHooks(settings, runnerFor(root, options.version));
+  const report = { settings: CLAUDE_SETTINGS, added, refreshed, notes };
+  if (added.length + refreshed.length === 0) return { ...report, status: 'unchanged' };
+  if (!options.write) return { ...report, status: 'dry-run' };
 
   mkdirSync(join(root, '.claude'), { recursive: true });
   writeFileSync(path, `${JSON.stringify(settings, null, exists ? indentOf(text) : 2)}\n`, 'utf8');
-  return { settings: CLAUDE_SETTINGS, status: exists ? 'updated' : 'created', added, notes };
+  return { ...report, status: exists ? 'updated' : 'created' };
 };

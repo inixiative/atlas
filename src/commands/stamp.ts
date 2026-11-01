@@ -4,12 +4,13 @@ import type { LoadedConfig } from '../config/defineConfig.ts';
 import { loadConfig } from '../config/load.ts';
 import { stampFor } from '../config/stamp.ts';
 import { mapLimit } from '../fs/concurrent.ts';
-import { applyStamp, type StampMode } from '../stamp/patcher.ts';
+import { applyStamp, type StampMode, type StampSkip } from '../stamp/patcher.ts';
 import type { CommentStyle } from '../syntax/comments.ts';
 
 export type StampChange = { path: string; before: string; after: string };
 export type Unresolved = { file: string; category: string; value: string };
-export type StampResult = { changes: StampChange[]; unresolved: Unresolved[] };
+export type Skipped = { file: string; reason: StampSkip };
+export type StampResult = { changes: StampChange[]; unresolved: Unresolved[]; skipped: Skipped[] };
 
 const IO_CONCURRENCY = 64;
 
@@ -66,7 +67,15 @@ export const runStamp = async (
   });
   const files = read.filter((f) => f !== null);
 
-  const changes = planStamp(files, config, opts.mode, opts.target);
+  const changes: StampChange[] = [];
+  const skipped: Skipped[] = [];
+  for (const file of files) {
+    const resolved = stampFor(file.path, config.stamp, config.concepts);
+    const result = applyStamp(file.source, resolved, file, opts.mode);
+    if (result.changed)
+      changes.push({ path: file.path, before: file.source, after: result.content });
+    else if (result.skipped) skipped.push({ file: file.path, reason: result.skipped });
+  }
   const unresolved: Unresolved[] = [];
   for (const { path } of scoped) {
     for (const u of stampFor(path, config.stamp, config.concepts).unresolved) {
@@ -76,5 +85,5 @@ export const runStamp = async (
 
   if (opts.write)
     await mapLimit(changes, IO_CONCURRENCY, (c) => Bun.write(resolve(root, c.path), c.after));
-  return { changes, unresolved };
+  return { changes, unresolved, skipped };
 };

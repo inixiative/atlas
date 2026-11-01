@@ -50,10 +50,27 @@ describe('setupClaudeHooks', () => {
         hooks: { PostToolUse: [atlasHookEntry('read', runner), atlasHookEntry('grep', runner)] },
       });
       expect(hookCommandFor('read', runner)).toBe(
-        'cd "$CLAUDE_PROJECT_DIR" && bunx @inixiative/atlas@0.5.0 hook read 2>/dev/null || true',
+        'cd "$CLAUDE_PROJECT_DIR" && bunx @inixiative/atlas@0.5.0 hook read || true',
       );
-      // already present (either runner) → a second run adds nothing
-      expect(setupClaudeHooks(root, { write: true, version: '0.6.0' }).status).toBe('unchanged');
+      expect(setupClaudeHooks(root, { write: true, version: '0.5.0' }).status).toBe('unchanged');
+
+      // an upgrade refreshes the pin in place
+      const upgraded = setupClaudeHooks(root, { write: true, version: '0.6.0' });
+      expect(upgraded.refreshed).toEqual(['read', 'grep']);
+      expect(readSettings(root).hooks.PostToolUse?.[0]?.hooks[0]?.command).toBe(
+        hookCommandFor('read', { installed: false, version: '0.6.0' }),
+      );
+
+      // installing atlas switches the hooks to the repo's own binary
+      writeFileSync(
+        join(root, 'package.json'),
+        JSON.stringify({ devDependencies: { '@inixiative/atlas': '^0.6.0' } }),
+      );
+      expect(setupClaudeHooks(root, { write: true }).refreshed).toEqual(['read', 'grep']);
+      expect(readSettings(root).hooks.PostToolUse?.map((g) => g.hooks[0]?.command)).toEqual([
+        hookCommandFor('read'),
+        hookCommandFor('grep'),
+      ]);
     });
   });
 
@@ -64,6 +81,7 @@ describe('setupClaudeHooks', () => {
         settings: '.claude/settings.json',
         status: 'created',
         added: ['read', 'grep'],
+        refreshed: [],
         notes: [],
       });
       expect<unknown>(readSettings(root)).toEqual({

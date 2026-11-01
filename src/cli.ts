@@ -130,15 +130,24 @@ type Ctx = {
   env: CliEnv;
 };
 
+// "add atlas hook read, grep; refresh atlas hook grep", in the tense of the outcome
+const setupChanges = (r: SetupReport, done: boolean): string =>
+  [
+    ...(r.added.length ? [`${done ? 'added' : 'add'} atlas hook ${r.added.join(', ')}`] : []),
+    ...(r.refreshed.length
+      ? [`${done ? 'refreshed' : 'refresh'} atlas hook ${r.refreshed.join(', ')}`]
+      : []),
+  ].join('; ');
+
 const logSetup = (log: (s?: string) => void, r: SetupReport, offered: boolean): void => {
   if (r.status === 'unchanged') log(`✓ ${r.settings} already has the atlas hooks`);
   else if (r.status === 'dry-run')
     log(
       offered
         ? `skipped: ${r.settings} unchanged`
-        : `would add atlas hook ${r.added.join(', ')} to ${r.settings} — re-run with --yes to write`,
+        : `would ${setupChanges(r, false)} in ${r.settings} — re-run with --yes to write`,
     );
-  else log(`✓ ${r.status} ${r.settings}: added atlas hook ${r.added.join(', ')}`);
+  else log(`✓ ${r.status} ${r.settings}: ${setupChanges(r, true)}`);
   for (const n of r.notes) log(`  note: ${n}`);
 };
 
@@ -186,7 +195,7 @@ const dispatch = async (
       let report = plan;
       let offered = false;
       if (plan.status === 'dry-run') {
-        const question = `Add atlas's PostToolUse hooks (${plan.added.join(', ')}) to ${CLAUDE_SETTINGS}?`;
+        const question = `Add or refresh atlas's PostToolUse hooks (${[...plan.added, ...plan.refreshed].join(', ')}) in ${CLAUDE_SETTINGS}?`;
         const confirm = flags.yes === true ? undefined : env.confirm;
         offered = confirm !== undefined;
         const accepted = flags.yes === true || (confirm !== undefined && (await confirm(question)));
@@ -375,10 +384,18 @@ const dispatch = async (
     case 'stamp': {
       const mode = flags.overwrite === true ? 'overwrite' : 'additive';
       const write = flags.write === true;
-      const { changes, unresolved } = await runStamp(root, { mode, target: positionals[1], write });
+      const { changes, unresolved, skipped } = await runStamp(root, {
+        mode,
+        target: positionals[1],
+        write,
+      });
       if (json) {
         log(
-          JSON.stringify({ changes: changes.map((c) => ({ path: c.path })), unresolved }, null, 2),
+          JSON.stringify(
+            { changes: changes.map((c) => ({ path: c.path })), unresolved, skipped },
+            null,
+            2,
+          ),
         );
       } else {
         if (!changes.length) log('✓ nothing to stamp — already up to date');
@@ -396,6 +413,13 @@ const dispatch = async (
           );
           for (const u of unresolved) log(`  ${u.file}: ${u.category}:${u.value}`);
         }
+        if (skipped.length) {
+          log(`⚠ ${skipped.length} file(s) left without a block — write it by hand:`);
+          for (const s of skipped)
+            log(
+              `  ${s.file}: ${s.reason === 'unreadable' ? 'has an @atlas comment atlas cannot read (collapsed onto one line?)' : 'no place for a block (a PHP file must open with <?php)'}`,
+            );
+        }
       }
       return done(0);
     }
@@ -406,3 +430,6 @@ const dispatch = async (
       return done(1);
   }
 };
+
+// `bun src/cli.ts …` runs the CLI as well; the package's bin is bin/atlas.ts.
+if (import.meta.main) await import('../bin/atlas.ts');

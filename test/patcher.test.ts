@@ -7,9 +7,9 @@ import {
   type StampInput,
   type StampMode,
 } from '../src/stamp/patcher.ts';
-import { COMMENT_STYLES } from '../src/syntax/comments.ts';
+import { type CommentStyle, styleFor } from '../src/syntax/comments.ts';
 
-const C = COMMENT_STYLES.c;
+const C = styleFor('src/file.ts') as CommentStyle; // JS/TS write `/**`
 const parse = (source: string) => parseAtlasBlock(source, C);
 const render = (spec: BlockSpec) => renderBlock(spec, C);
 const stamp = (source: string, resolved: StampInput, mode?: StampMode) =>

@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { parseAtlasBlock } from '../src/parse/parseAtlasBlock.ts';
-import { COMMENT_STYLES } from '../src/syntax/comments.ts';
+import { type CommentStyle, styleFor } from '../src/syntax/comments.ts';
 
-const parse = (source: string) => parseAtlasBlock(source, COMMENT_STYLES.c);
+const parse = (source: string) => parseAtlasBlock(source, styleFor('src/file.ts') as CommentStyle);
 
 const block = (body: string) => `/**\n${body}\n */\nimport { x } from 'y';\n`;
 

@@ -6,9 +6,9 @@ import { planStamp, runStamp } from '../src/commands/stamp.ts';
 import type { LoadedConfig } from '../src/config/defineConfig.ts';
 import { partOfFor } from '../src/config/defineConfig.ts';
 import { parseAtlasBlock } from '../src/parse/parseAtlasBlock.ts';
-import { COMMENT_STYLES, COMMENT_TABLE } from '../src/syntax/comments.ts';
+import { COMMENT_TABLE, type CommentStyle, styleFor } from '../src/syntax/comments.ts';
 
-const C = COMMENT_STYLES.c;
+const C = styleFor('src/file.ts') as CommentStyle; // JS/TS write `/**`
 const parse = (source: string) => parseAtlasBlock(source, C);
 
 const config: LoadedConfig = {

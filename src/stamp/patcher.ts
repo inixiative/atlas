@@ -1,6 +1,7 @@
 import {
   type AtlasAnnotation,
   locateAtlasBlock,
+  MENTIONS_ATLAS,
   parseAtlasBlock,
   type UsesState,
 } from '../parse/parseAtlasBlock.ts';
@@ -37,7 +38,8 @@ export const renderBlock = (spec: BlockSpec, style: CommentStyle): string => {
   else if (spec.usesState === 'proposed' && spec.uses?.length) axes.push(axis('uses?', spec.uses));
   else if (spec.usesState === 'values' && spec.uses?.length) axes.push(axis('uses', spec.uses));
   if (spec.constructs?.length) axes.push(axis('constructs', spec.constructs));
-  if (style.shape === 'line') return axes.map((a) => `${style.prefix} ${a}`).join('\n');
+  if (style.shape === 'line')
+    return axes.map((a) => `${style.writePrefix ?? style.prefix} ${a}`).join('\n');
   return [style.writeOpen, ...axes.map((a) => `${style.line}${a}`), style.writeClose].join('\n');
 };
 
@@ -53,6 +55,11 @@ const renderWithEol = (spec: BlockSpec, style: CommentStyle, eol: string): strin
 const carryUses = (existing: AtlasAnnotation | null): Pick<BlockSpec, 'uses' | 'usesState'> =>
   existing ? { uses: existing.uses, usesState: existing.usesState } : {};
 
+// Why a file that needs a fresh block didn't get one: it already has an `@atlas` comment no
+// block parses from (a second block would hide it), or its language allows none where atlas
+// would put it (a PHP file that starts as HTML).
+export type StampSkip = 'unreadable' | 'no-place';
+
 // Merge a stamp into a file's source per mode. Returns the new content and
 // whether anything changed (idempotent: a no-op re-stamp reports changed=false).
 // `path` decides where a fresh block goes (below the file's preamble).
@@ -61,7 +68,7 @@ export const applyStamp = (
   resolved: StampInput,
   file: { path: string; style: CommentStyle },
   mode: StampMode = 'additive',
-): { content: string; changed: boolean } => {
+): { content: string; changed: boolean; skipped?: StampSkip } => {
   const { style } = file;
   const existing = parseAtlasBlock(source, style);
   const located = locateAtlasBlock(source, style);
@@ -77,11 +84,18 @@ export const applyStamp = (
     };
     const hasAny = [spec.kind, spec.partOf, spec.constructs].some((v) => v && v.length);
     if (!hasAny) return { content: source, changed: false };
-    const block = renderWithEol(spec, style, eol);
+    if (MENTIONS_ATLAS.test(source))
+      return { content: source, changed: false, skipped: 'unreadable' };
     const at = preambleEnd(file.path, source);
+    const head = source.slice(0, at);
     const rest = source.slice(at);
-    const blank = style.shape === 'line' && style.blankAfter && !/^\r?\n/.test(rest) ? eol : '';
-    return { content: source.slice(0, at) + block + eol + blank + rest, changed: true };
+    if (style.placeAfter && !style.placeAfter.test(head))
+      return { content: source, changed: false, skipped: 'no-place' };
+    // a preamble that ends the file without a newline still gets one before the block
+    const before = head !== '' && !head.endsWith('\n') ? eol : '';
+    const blank = style.blankAfter && rest !== '' && !/^\r?\n/.test(rest) ? eol : '';
+    const block = renderWithEol(spec, style, eol);
+    return { content: head + before + block + eol + blank + rest, changed: true };
   }
 
   // Overwrite is exempt on a pinned block — the hand-curated overload wins.

@@ -34,9 +34,39 @@ const CASES: { path: string; source: string; keepsFirst?: string; block: string 
     block: '/**\n * @atlas\n * @kind service\n * @partOf feature:billing\n */',
   },
   {
+    // plain `/*`, and a blank line: a comment touching `package` is the package doc
     path: 'svc/main.go',
-    source: 'package main\n',
-    block: '/**\n * @atlas\n * @kind service\n * @partOf feature:billing\n */',
+    source: '\npackage main\n',
+    block: '/*\n * @atlas\n * @kind service\n * @partOf feature:billing\n */',
+  },
+  {
+    // `/**` is a doc comment in Rust (E0753 before `//!`); `#![` is not a shebang
+    path: 'crate/lib.rs',
+    source: '#![allow(dead_code)]\n//! Crate docs.\npub fn f() {}\n',
+    block: '/*\n * @atlas\n * @kind service\n * @partOf feature:billing\n */',
+  },
+  {
+    path: 'docs/page.mdx',
+    source: '---\ntitle: P\n---\n# P\n',
+    keepsFirst: '---\ntitle: P\n---\n',
+    block: '{/*\n@atlas\n@kind service\n@partOf feature:billing\n*/}',
+  },
+  {
+    path: 'src/main.zig',
+    source: 'const std = @import("std");\n',
+    block: '// @atlas\n// @kind service\n// @partOf feature:billing',
+  },
+  {
+    path: 'lib/legacy.rb',
+    source: '# encoding: ascii-8bit\nputs 1\n',
+    keepsFirst: '# encoding: ascii-8bit\n',
+    block: '# @atlas\n# @kind service\n# @partOf feature:billing',
+  },
+  {
+    path: 'lisp/mode.el',
+    source: ';;; mode.el --- a mode -*- lexical-binding: t -*-\n(provide (quote mode))\n',
+    keepsFirst: ';;; mode.el --- a mode -*- lexical-binding: t -*-\n',
+    block: ';; @atlas\n;; @kind service\n;; @partOf feature:billing',
   },
   {
     path: 'tool/run.py',
@@ -86,13 +116,13 @@ const CASES: { path: string; source: string; keepsFirst?: string; block: string 
     path: 'web/index.php',
     source: '<?php\necho 1;\n',
     keepsFirst: '<?php\n',
-    block: '/**\n * @atlas\n * @kind service\n * @partOf feature:billing\n */',
+    block: '/*\n * @atlas\n * @kind service\n * @partOf feature:billing\n */',
   },
   {
     path: 'web/site.css',
     source: '@charset "utf-8";\nbody {}\n',
     keepsFirst: '@charset "utf-8";\n',
-    block: '/**\n * @atlas\n * @kind service\n * @partOf feature:billing\n */',
+    block: '/*\n * @atlas\n * @kind service\n * @partOf feature:billing\n */',
   },
   {
     path: 'conf/app.xml',
@@ -108,7 +138,7 @@ const CASES: { path: string; source: string; keepsFirst?: string; block: string 
   {
     path: 'src/core.clj',
     source: '(ns core)\n',
-    block: '; @atlas\n; @kind service\n; @partOf feature:billing',
+    block: ';; @atlas\n;; @kind service\n;; @partOf feature:billing',
   },
 ];
 
@@ -154,6 +184,50 @@ describe('stamp → parse round trip, per language', () => {
   });
 });
 
+describe('placement rules', () => {
+  const at = (path: string) => ({ path, style: styleOf(path) });
+
+  test('Go: a blank line keeps the block from becoming the package doc', () => {
+    expect(applyStamp('package main\n', tags, at('a.go')).content).toBe(
+      '/*\n * @atlas\n * @kind service\n * @partOf feature:billing\n */\n\npackage main\n',
+    );
+  });
+
+  test('PHP: a file that starts as HTML gets no block (it would print to the page)', () => {
+    const result = applyStamp('<html><?php echo 1; ?></html>\n', tags, at('t.php'));
+    expect(result).toEqual({
+      content: '<html><?php echo 1; ?></html>\n',
+      changed: false,
+      skipped: 'no-place',
+    });
+  });
+
+  test('an unreadable @atlas comment is never hidden behind a second block', () => {
+    const collapsed = '/** * @atlas * @kind route * @partOf feature:x */\nx;\n';
+    expect(applyStamp(collapsed, tags, at('a.ts'))).toEqual({
+      content: collapsed,
+      changed: false,
+      skipped: 'unreadable',
+    });
+  });
+
+  test('a preamble that ends the file without a newline stays first', () => {
+    expect(applyStamp('#!/bin/sh', tags, at('a.sh')).content).toBe(
+      '#!/bin/sh\n# @atlas\n# @kind service\n# @partOf feature:billing\n',
+    );
+    expect(applyStamp('---\ntitle: x\n---', tags, at('a.md')).content).toBe(
+      '---\ntitle: x\n---\n<!--\n@atlas\n@kind service\n@partOf feature:billing\n-->\n',
+    );
+  });
+
+  test('a one-line `@atlas` opener is filled in place', () => {
+    const md = '<!-- @atlas -->\n# Title\n';
+    const { content } = applyStamp(md, tags, at('a.md'));
+    expect(content).toBe('<!--\n@atlas\n@kind service\n@partOf feature:billing\n-->\n# Title\n');
+    expect(parseAtlasBlock('/** @atlas pin */\nx;\n', styleOf('a.ts'))?.pinned).toBe(true);
+  });
+});
+
 describe('line-comment blocks', () => {
   const hash = styleOf('a.py');
 
@@ -171,6 +245,23 @@ describe('line-comment blocks', () => {
     expect(content).toBe(
       '# Billing helpers.\n# @atlas\n# @kind service\n# @partOf feature:billing\n# @uses primitive:jobs\n#\n# Charges cards.\nx = 1\n',
     );
+  });
+
+  test('repeated prefixes read as one: `;;`, `##`, `---`', () => {
+    expect(parseAtlasBlock(';; @atlas\n;; @kind job\n', styleOf('a.clj'))?.kind).toEqual(['job']);
+    expect(parseAtlasBlock('## @atlas\n## @kind job\n', hash)?.kind).toEqual(['job']);
+    expect(parseAtlasBlock('--- @atlas\n--- @kind job\n', styleOf('a.lua'))?.kind).toEqual(['job']);
+  });
+
+  test('an empty comment line between axis lines is bridged; one after the block is not', () => {
+    const source = '# @atlas\n#\n# @kind job\n#\n# Prose.\n';
+    expect(parseAtlasBlock(source, hash)?.kind).toEqual(['job']);
+    const { content } = applyStamp(
+      source,
+      { partOf: ['feature:billing'] },
+      { path: 'a.py', style: hash },
+    );
+    expect(content).toBe('# @atlas\n# @kind job\n# @partOf feature:billing\n#\n# Prose.\n');
   });
 
   test('`#` lines inside strings or code are not comment lines', () => {
@@ -209,10 +300,14 @@ describe('the comment table', () => {
     expect(styleNameFor('Makefile')).toBe('hash');
     expect(styleNameFor('ops/Dockerfile')).toBe('hash');
     expect(styleNameFor('q.sql')).toBe('dash');
-    expect(styleNameFor('n.mdx')).toBe('html');
+    expect(styleNameFor('n.md')).toBe('html');
     expect(styleNameFor('data.json')).toBeNull();
     expect(styleNameFor('notes.txt')).toBeNull();
-    expect(styleNameFor('.ts')).toBeNull(); // a dotfile named like an extension isn't one
+    expect(styleNameFor('src/main.zig')).toBe('slash');
+    expect(styleNameFor('docs/a.mdx')).toBe('mdx');
+    expect(styleNameFor('makefile')).toBe('hash'); // case-insensitive
+    expect(styleNameFor('stats.R')).toBe('hash');
+    expect(styleNameFor('api.Dockerfile')).toBe('hash');
   });
 
   test('a repo can add files to a style, or move one to another', () => {
@@ -360,6 +455,34 @@ describe('a mixed-language repo', () => {
     );
   });
 
+  test('a nested `.atlas/` (a package with its own config) is never walked as source', async () => {
+    await withRepo(
+      {
+        '.atlas/config.ts': `export default { include: ['**/*.ts'] };\n`,
+        'packages/x/.atlas/config.ts': 'export default {};\n',
+        'packages/x/a.ts': '/**\n * @atlas\n */\n',
+      },
+      async (root) => {
+        expect((await analyze(root)).files.map((f) => f.path)).toEqual(['packages/x/a.ts']);
+      },
+    );
+  });
+
+  test('a root the enclosing repo ignores lists its own files (not zero)', async () => {
+    await withRepo(
+      {
+        '.gitignore': 'scratch/\n',
+        'scratch/.atlas/config.ts': `export default { include: ['**/*.py'] };\n`,
+        'scratch/a.py': '# @atlas\n',
+      },
+      async (root) => {
+        const paths = (await analyze(join(root, 'scratch'))).files.map((f) => f.path);
+        expect(paths).toEqual(['a.py']);
+      },
+      { git: true },
+    );
+  });
+
   test('a file named like source but holding binary is not read', async () => {
     await withRepo(
       {
@@ -390,6 +513,25 @@ describe('a mixed-language repo', () => {
         const result = await runCli(['check', '--root', root], { cwd: root });
         expect(result.code).toBe(1);
         expect(result.out).toContain('comments.pound is not a comment style');
+      },
+    );
+  });
+
+  test('`.atlas/` helpers at any depth bind to this atlas; plain strings are left alone', async () => {
+    await withRepo(
+      {
+        '.atlas/config.ts': `import { kinds } from './lib/kinds.ts';\nexport default { include: ['a.py'], stamp: [{ include: 'a.py', kind: kinds }] };\n`,
+        '.atlas/lib/kinds.ts': `import { DEFAULT_KINDS } from '@inixiative/atlas';\nexport const kinds = DEFAULT_KINDS.includes('service') ? 'service' : 'none';\n`,
+        '.atlas/thesaurus.ts': `export const THESAURUS = {};\nexport const NAME = '@inixiative/atlas';\n`,
+        'a.py': 'x = 1\n',
+      },
+      async (root) => {
+        const [file] = (await analyze(root)).files;
+        expect(file?.tagging).toBe('inline');
+        const thesaurus = (await import(join(root, '.atlas/thesaurus.ts'))) as { NAME: string };
+        expect(thesaurus.NAME).toBe('@inixiative/atlas');
+        const stamp = await runCli(['stamp', '--json', '--root', root], { cwd: root });
+        expect(stamp.out).toContain('"a.py"');
       },
     );
   });

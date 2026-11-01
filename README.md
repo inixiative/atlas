@@ -42,8 +42,14 @@ bunx @inixiative/atlas init       # any repo: no package.json or node_modules ne
 ```
 
 atlas runs on Bun (it imports your `.atlas/*.ts` config directly). The config's own
-`@inixiative/atlas` imports are bound to the atlas that is running, so a Python, Go or docs repo
-needs nothing installed besides Bun.
+`@inixiative/atlas` imports (in any file under `.atlas/`) are bound to the atlas that is running,
+so a Python, Go or docs repo needs nothing installed besides Bun.
+
+**A repo you don't trust.** Running atlas runs that repo's code: it imports `.atlas/**/*.ts`, and
+Bun applies the `bunfig.toml` of the directory you run it from (a `preload` there runs first).
+Read `.atlas/` before running atlas on such a repo, run it from a neutral directory with
+`--root <repo>`, or use a sandbox. atlas itself can't block a preload; Bun runs it before atlas
+starts.
 
 ## Any language
 
@@ -52,11 +58,13 @@ atlas reads one table of comment styles, grouped by how a language writes a comm
 
 | Style | Block | Files |
 |---|---|---|
-| `c` | `/** … */` | `.ts` `.tsx` `.mts` `.cts` `.js` `.jsx` `.mjs` `.cjs` `.go` `.java` `.kt` `.kts` `.rs` `.c` `.h` `.cc` `.cpp` `.hpp` `.cs` `.swift` `.scala` `.dart` `.groovy` `.proto` `.zig` `.css` `.scss` `.less` `.php` |
-| `html` | `<!-- … -->` | `.md` `.mdx` `.markdown` `.html` `.htm` `.xml` `.vue` `.svelte` |
-| `hash` | `# ` lines | `.py` `.pyi` `.rb` `.sh` `.bash` `.zsh` `.fish` `.yaml` `.yml` `.toml` `.ex` `.exs` `.r` `.pl` `.pm` `.tf` `.nix` `.cmake` `.ps1` `Dockerfile` `Makefile` `Gemfile` `Rakefile` `Justfile` `Procfile` |
+| `c` | `/** … */` | `.ts` `.tsx` `.mts` `.cts` `.js` `.jsx` `.mjs` `.cjs` `.go` `.java` `.kt` `.kts` `.rs` `.c` `.h` `.cc` `.cpp` `.hpp` `.cs` `.swift` `.scala` `.dart` `.groovy` `.proto` `.css` `.scss` `.less` `.php` |
+| `html` | `<!-- … -->` | `.md` `.markdown` `.html` `.htm` `.xml` `.vue` `.svelte` |
+| `mdx` | `{/* … */}` | `.mdx` |
+| `hash` | `# ` lines | `.py` `.pyi` `.rb` `.sh` `.bash` `.zsh` `.fish` `.yaml` `.yml` `.toml` `.ex` `.exs` `.r` `.pl` `.pm` `.tf` `.nix` `.cmake` `.ps1` `.dockerfile` `Dockerfile` `Containerfile` `Makefile` `GNUmakefile` `Gemfile` `Rakefile` `Justfile` `Procfile` |
+| `slash` | `// ` lines | `.zig` |
 | `dash` | `-- ` lines | `.sql` `.lua` `.hs` `.elm` |
-| `semicolon` | `; ` lines | `.clj` `.cljs` `.cljc` `.edn` `.lisp` `.el` `.scm` `.rkt` |
+| `semicolon` | `;; ` lines | `.clj` `.cljs` `.cljc` `.edn` `.lisp` `.el` `.scm` `.rkt` |
 | `dotdot` | `.. ` lines | `.rst` |
 
 Add files to a style in `.atlas/config.ts`: `comments: { hash: ['.nix', 'Tiltfile'] }` (`.ext` or
@@ -65,9 +73,19 @@ an exact file name; listing one under another style moves it there).
 - **Line styles** (`#`, `--`, `;`, `..`): the block is the `@atlas` line plus the axis lines right
   after it. The first line that isn't an axis line ends it, so a prose comment next to the block is
   never part of it.
-- **Placement.** A fresh block goes at the top, below what must stay first: a shebang, Python's
-  encoding line, Dockerfile parser directives, Markdown front matter, an XML prolog, `<?php`, CSS
-  `@charset`. In reST it is followed by a blank line.
+- **Placement.** A fresh block goes at the top, below what must stay first: a shebang (not Rust's
+  `#![…]`), an Emacs `-*- … -*-` line, Python's or Ruby's encoding line, Dockerfile parser
+  directives, Markdown front matter, an XML prolog, `<?php`, CSS `@charset`. Language rules on
+  top of the style:
+  - the C family writes plain `/* */`, because `/**` is a doc comment in Rust (an error before
+    `//!`), C#, Dart, Java and Go; JS/TS keep `/**`;
+  - Go and reST get a blank line after the block (in Go a comment touching `package` becomes the
+    package doc; reST ends a comment only at a blank line);
+  - a PHP file gets a block only below `<?php`; one that starts as HTML is left alone.
+- **Stamp never hides a block.** A file with an `@atlas` comment atlas can't read (a block a
+  formatter collapsed onto one line) gets no second block; `stamp` lists it, and any file it
+  can't place a block in, for a hand fix. A one-line opener (`<!-- @atlas -->`, `/** @atlas */`)
+  is filled in place.
 - **No comment syntax** (`.json`, `.txt`, `.csv`, images): the file is never edited. The stamp
   rules that match its path are its tags (`@kind`/`@partOf`; such a file has no `@uses`), and it
   appears in the graph and the hooks like any other. `coverage` counts these files as "tagged by
@@ -75,8 +93,12 @@ an exact file name; listing one under another style moves it there).
 - **Which files.** With `include` unset, atlas considers every file in a known comment style
   plus every file a stamp rule tags by path. Files come from git (tracked, plus untracked files not
   in `.gitignore`), so generated output and nested worktrees stay out. Outside a git work tree
-  every file is listed. Dot-directories are walked (`.github/`, `.claude/`); `.git`, `.atlas`,
-  `node_modules` and `dist` never are. A file named like source but holding binary is skipped.
+  every file is listed, and so is a root the enclosing repo ignores; any other git failure is an
+  error. Dot-directories are walked (`.github/`, `.claude/`); `.git`, `.atlas` (at any depth),
+  `node_modules` and `dist` never are, and neither are submodules. A file named like source but
+  holding binary is skipped.
+- **Limits.** Line blocks are found anywhere in the file, so `# @atlas` lines inside a Python
+  string or a shell heredoc read as the block. Matching ignores case.
 
 atlas maps files, not the functions inside them, in every language.
 

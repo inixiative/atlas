@@ -4,7 +4,7 @@ import { COMMENT_STYLES, type CommentTable, mergeCommentTable } from '../syntax/
 import { DEFAULT_KINDS } from '../vocab/kinds.ts';
 import type { AtlasConfigInput, LoadedConfig } from './defineConfig.ts';
 
-// `.atlas/*.ts` imports `@inixiative/atlas` (defineConfig, partOfFor, DEFAULT_KINDS). Bind those
+// `.atlas/**/*.ts` imports `@inixiative/atlas` (defineConfig, partOfFor, DEFAULT_KINDS). Bind those
 // imports to the atlas that is running, so the config loads in a repo with no package.json or
 // node_modules (`bunx @inixiative/atlas check` in a Python repo) and never against another
 // installed version. Bun's runtime plugins ignore onResolve for bare imports, so the specifier
@@ -13,7 +13,8 @@ const SELF: Record<string, string> = {
   '@inixiative/atlas': resolve(import.meta.dir, '../index.ts'),
   '@inixiative/atlas/config': resolve(import.meta.dir, './defineConfig.ts'),
 };
-const ATLAS_IMPORT = /(['"])(@inixiative\/atlas(?:\/config)?)\1/g;
+// only a module specifier: `from '…'`, `import '…'`, `import('…')`, never another string literal
+const ATLAS_IMPORT = /(\bfrom\s*|\bimport\s*\(?\s*)(['"])(@inixiative\/atlas(?:\/config)?)\2/g;
 let bound = false;
 const bindSelfImports = (): void => {
   if (bound) return;
@@ -22,11 +23,12 @@ const bindSelfImports = (): void => {
     name: 'atlas-config-self',
     target: 'bun',
     setup(build) {
-      build.onLoad({ filter: /[\\/]\.atlas[\\/][^\\/]+\.ts$/ }, async ({ path }) => ({
+      build.onLoad({ filter: /[\\/]\.atlas[\\/].+\.[cm]?ts$/ }, async ({ path }) => ({
         loader: 'ts',
         contents: (await Bun.file(path).text()).replace(
           ATLAS_IMPORT,
-          (_, _quote, specifier: string) => JSON.stringify(SELF[specifier]),
+          (_, keyword: string, _quote, specifier: string) =>
+            `${keyword}${JSON.stringify(SELF[specifier])}`,
         ),
       }));
     },

@@ -40,16 +40,31 @@ type LineStyle = Extract<CommentStyle, { shape: 'line' }>;
 
 export type LocatedBlock = { start: number; end: number; text: string };
 
-// The lines of a comment as the axis grammar reads them. `#`, `--` and `;` lines lose their
-// prefix. Block comments keep their lines as written: each axis sits on its own line (AXIS_LINE
-// allows the ` * `), so a block a formatter collapsed onto one line (`/** * @atlas * @kind x */`)
-// doesn't parse, and `check` reports it instead of reading it as a block with no tags.
-export const commentBody = (text: string, style: CommentStyle): string[] =>
-  text.split(/\r?\n/).map((raw) => {
-    if (style.shape === 'block') return raw;
-    const at = raw.indexOf(style.prefix);
-    return at < 0 ? raw : raw.slice(at + style.prefix.length);
-  });
+// A line comment: the prefix, any repeats of its last character (`;;`, `##`, `---`, `///`), then
+// the text the axis grammar reads.
+const lineComment = (style: LineStyle): RegExp =>
+  new RegExp(
+    `^[ \\t]*${escapeRegex(style.prefix)}${escapeRegex(style.prefix.slice(-1))}*(.*?)\\r?$`,
+  );
+
+// A one-line block holding only `@atlas` (`<!-- @atlas -->`, `/** @atlas pin */`) is a block
+// waiting for its axes. A block a formatter collapsed onto one line (`/** * @atlas * @kind x */`)
+// is not: it stays unreadable, and `check` reports it instead of reading a block with no tags.
+const ONLY_OPENER = /^\s*\*?\s*@atlas(?:[ \t]+pin)?\s*$/;
+
+// The lines of a comment as the axis grammar reads them. Line comments lose their prefix. Block
+// comments keep their lines as written (AXIS_LINE reads past a ` * `), each axis on its own line.
+export const commentBody = (text: string, style: CommentStyle): string[] => {
+  if (style.shape === 'line') {
+    const comment = lineComment(style);
+    return text.split(/\r?\n/).map((raw) => comment.exec(raw)?.[1] ?? raw);
+  }
+  if (!text.includes('\n') && text.startsWith(style.open) && text.endsWith(style.close)) {
+    const inner = text.slice(style.open.length, -style.close.length).replace(/^\*+/, '');
+    if (ONLY_OPENER.test(inner)) return [inner];
+  }
+  return text.split(/\r?\n/);
+};
 
 // Block styles: the first comment with an `@atlas` line.
 const locateInBlocks = (source: string, style: BlockStyle): LocatedBlock | null => {
@@ -65,16 +80,17 @@ const locateInBlocks = (source: string, style: BlockStyle): LocatedBlock | null 
   return null;
 };
 
-// Line styles: the first comment line reading `@atlas`, then every consecutive comment line that
-// is an axis line. The block stops at the first line that isn't, so prose comments next to it are
-// never part of it, and the stamper never rewrites them.
+// Line styles: the first comment line reading `@atlas`, then the axis lines after it (an empty
+// comment line between two axis lines is bridged). The block ends at its last axis line and stops
+// at the first other line, so prose comments next to it are never part of it, and the stamper
+// never rewrites them.
 const locateInLines = (source: string, style: LineStyle): LocatedBlock | null => {
-  const commentLine = new RegExp(`^[ \\t]*${escapeRegex(style.prefix)}(.*?)\\r?$`);
+  const comment = lineComment(style);
   let offset = 0;
   let start = -1;
   let end = -1;
   for (const line of source.split('\n')) {
-    const body = commentLine.exec(line)?.[1];
+    const body = comment.exec(line)?.[1];
     const lineEnd = offset + line.replace(/\r$/, '').length;
     if (start < 0) {
       if (body !== undefined && OPENS_ATLAS.test(body)) {
@@ -83,11 +99,16 @@ const locateInLines = (source: string, style: LineStyle): LocatedBlock | null =>
       }
     } else if (body !== undefined && AXIS_LINE.test(body)) {
       end = lineEnd;
-    } else break;
+    } else if (body === undefined || body.trim() !== '') break;
     offset += line.length + 1;
   }
   return start < 0 ? null : { start, end, text: source.slice(start, end) };
 };
+
+// A comment that names `@atlas` in any style. When a file has one but no block parses (collapsed
+// onto one line, mangled by hand), the stamper must not add a second block.
+export const MENTIONS_ATLAS =
+  /(?:\/\*+|<!--|\{\/\*|#+|-{2,}|;+|\/{2,}|\.\.)[ \t]*\*?[ \t]*@atlas\b/;
 
 // Locate the first comment that opens with `@atlas`, in the file's comment style, returning its
 // text and character span so the patcher can splice a regenerated block in place.
