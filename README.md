@@ -58,7 +58,7 @@ atlas reads one table of comment styles, grouped by how a language writes a comm
 
 | Style | Block | Files |
 |---|---|---|
-| `c` | `/** … */` | `.ts` `.tsx` `.mts` `.cts` `.js` `.jsx` `.mjs` `.cjs` `.go` `.java` `.kt` `.kts` `.rs` `.c` `.h` `.cc` `.cpp` `.hpp` `.cs` `.swift` `.scala` `.dart` `.groovy` `.proto` `.css` `.scss` `.less` `.php` |
+| `c` | `/* … */` (JS/TS: `/** … */`) | `.ts` `.tsx` `.mts` `.cts` `.js` `.jsx` `.mjs` `.cjs` `.go` `.java` `.kt` `.kts` `.rs` `.c` `.h` `.cc` `.cpp` `.hpp` `.cs` `.swift` `.scala` `.dart` `.groovy` `.proto` `.css` `.scss` `.less` `.php` |
 | `html` | `<!-- … -->` | `.md` `.markdown` `.html` `.htm` `.xml` `.vue` `.svelte` |
 | `mdx` | `{/* … */}` | `.mdx` |
 | `hash` | `# ` lines | `.py` `.pyi` `.rb` `.sh` `.bash` `.zsh` `.fish` `.yaml` `.yml` `.toml` `.ex` `.exs` `.r` `.pl` `.pm` `.tf` `.nix` `.cmake` `.ps1` `.dockerfile` `Dockerfile` `Containerfile` `Makefile` `GNUmakefile` `Gemfile` `Rakefile` `Justfile` `Procfile` |
@@ -70,12 +70,14 @@ atlas reads one table of comment styles, grouped by how a language writes a comm
 Add files to a style in `.atlas/config.ts`: `comments: { hash: ['.nix', 'Tiltfile'] }` (`.ext` or
 an exact file name; listing one under another style moves it there).
 
-- **Line styles** (`#`, `--`, `;`, `..`): the block is the `@atlas` line plus the axis lines right
-  after it. The first line that isn't an axis line ends it, so a prose comment next to the block is
-  never part of it.
+- **Line styles** (`#`, `//`, `--`, `;;`, `..`): the block is the `@atlas` line plus the
+  `@kind`/`@partOf`/`@uses`/`@constructs` lines right after it (repeated prefixes like `;;` and
+  `##` read as one; an empty comment line between them is bridged). Any other line ends it, so a
+  prose comment or a doc tag next to the block (LuaLS `---@class`, YARD `# @deprecated`) is never
+  part of it and never rewritten.
 - **Placement.** A fresh block goes at the top, below what must stay first: a shebang (not Rust's
-  `#![…]`), an Emacs `-*- … -*-` line, Python's or Ruby's encoding line, Dockerfile parser
-  directives, Markdown front matter, an XML prolog, `<?php`, CSS `@charset`. Language rules on
+  `#![…]`), an Emacs `-*- … -*-` line, Python's or Ruby's encoding line, Go build constraints,
+  Dockerfile parser directives, Markdown front matter, an XML prolog, `<?php`, CSS `@charset`. Language rules on
   top of the style:
   - the C family writes plain `/* */`, because `/**` is a doc comment in Rust (an error before
     `//!`), C#, Dart, Java and Go; JS/TS keep `/**`;
@@ -210,7 +212,7 @@ Install them with `atlas setup` (asks first; `atlas setup --yes` for scripts and
 merges two `PostToolUse` entries into `.claude/settings.json`, leaves every other key and hook as it
 was, and adds nothing on a second run. A repo whose `package.json` depends on
 `@inixiative/atlas` runs its own install, as below. Any other repo gets
-`cd "$CLAUDE_PROJECT_DIR" && bunx @inixiative/atlas@<version> hook read 2>/dev/null || true`,
+`cd "$CLAUDE_PROJECT_DIR" && bunx @inixiative/atlas@<version> hook read || true`,
 pinned to the atlas that wrote it.
 
 ```json

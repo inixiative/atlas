@@ -62,8 +62,8 @@ export const runStamp = async (
   // A file with no comment style is tagged by its path; there is nothing to write into it.
   const read = await mapLimit(scoped, IO_CONCURRENCY, async ({ path, style }) => {
     if (!style) return null;
-    const source = await readText(root, path);
-    return source === null ? null : { path, style, source };
+    const read = await readText(root, path);
+    return read === null ? null : { path, style, source: read.text, bom: read.bom };
   });
   const files = read.filter((f) => f !== null);
 
@@ -72,8 +72,9 @@ export const runStamp = async (
   for (const file of files) {
     const resolved = stampFor(file.path, config.stamp, config.concepts);
     const result = applyStamp(file.source, resolved, file, opts.mode);
+    const mark = file.bom ? '\uFEFF' : '';
     if (result.changed)
-      changes.push({ path: file.path, before: file.source, after: result.content });
+      changes.push({ path: file.path, before: mark + file.source, after: mark + result.content });
     else if (result.skipped) skipped.push({ file: file.path, reason: result.skipped });
   }
   const unresolved: Unresolved[] = [];

@@ -226,7 +226,13 @@ const PREAMBLES: Preamble[] = [
     applies: withExtension('.py', '.pyi', '.rb'),
     pattern: /^#[^\n]*coding[:=][^\n]*(?:\n|$)/,
   },
-  { applies: isDockerfile, pattern: /^(?:#[ \t]*[a-z]+=[^\n]*(?:\n|$))+/ },
+  { applies: isDockerfile, pattern: /^(?:#[ \t]*[a-z]+=[^\n]*(?:\n|$))+/i },
+  // Go build constraints: `// +build` must be preceded only by line comments, so a `/* */` block
+  // above it would switch it off
+  {
+    applies: withExtension('.go'),
+    pattern: /^(?:\/\/(?:go:build|[ \t]*\+build)[^\n]*(?:\r?\n|$))+(?:[ \t]*\r?\n)?/,
+  },
   {
     applies: withExtension('.md', '.mdx', '.markdown'),
     pattern: /^---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/,

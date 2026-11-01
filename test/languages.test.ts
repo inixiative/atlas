@@ -228,6 +228,13 @@ describe('placement rules', () => {
     expect(applyStamp('<!-- see @atlas below -->\n', tags, at('a.md')).skipped).toBe('unreadable');
   });
 
+  test('Go build constraints stay first (a block above `// +build` would switch it off)', () => {
+    const go = '// +build linux\n\npackage x\n';
+    expect(applyStamp(go, tags, at('a.go')).content).toBe(
+      '// +build linux\n\n/*\n * @atlas\n * @kind service\n * @partOf feature:billing\n */\n\npackage x\n',
+    );
+  });
+
   test('a preamble that ends the file without a newline stays first', () => {
     expect(applyStamp('#!/bin/sh', tags, at('a.sh')).content).toBe(
       '#!/bin/sh\n# @atlas\n# @kind service\n# @partOf feature:billing\n',
@@ -262,6 +269,18 @@ describe('line-comment blocks', () => {
     expect(content).toBe(
       '# Billing helpers.\n# @atlas\n# @kind service\n# @partOf feature:billing\n# @uses primitive:jobs\n#\n# Charges cards.\nx = 1\n',
     );
+  });
+
+  test('a doc tag after the block is never absorbed, so a re-stamp is a no-op', () => {
+    for (const [path, source] of [
+      ['account.lua', '---@class Account\n---@field balance number\nlocal A = {}\n'],
+      ['foo.rb', '# @deprecated use Bar\nclass Foo; end\n'],
+    ] as const) {
+      const file = { path, style: styleOf(path) };
+      const once = applyStamp(source, tags, file).content;
+      expect(once.endsWith(source)).toBe(true);
+      expect(applyStamp(once, tags, file).changed).toBe(false);
+    }
   });
 
   test('repeated prefixes read as one: `;;`, `##`, `---`', () => {
@@ -577,7 +596,37 @@ describe('a mixed-language repo', () => {
   });
 });
 
+describe('a byte-order mark', () => {
+  test('survives a stamp', async () => {
+    await withRepo(
+      {
+        '.atlas/config.ts': `export default { include: ['*.ps1'], stamp: [{ include: '*.ps1', kind: 'service' }] };\n`,
+        'run.ps1': new Uint8Array([
+          0xef,
+          0xbb,
+          0xbf,
+          ...new TextEncoder().encode('Write-Host "é"\n'),
+        ]),
+      },
+      async (root) => {
+        await runCli(['stamp', '--write', '--root', root], { cwd: root });
+        const bytes = await Bun.file(join(root, 'run.ps1')).bytes();
+        expect([...bytes.slice(0, 5)]).toEqual([0xef, 0xbb, 0xbf, 0x23, 0x20]); // BOM, then `# `
+      },
+    );
+  });
+});
+
 describe('atlas init', () => {
+  test('include globs are spelled as the files are (globs are case-sensitive)', async () => {
+    await withRepo({ 'R/analysis.R': 'x <- 1\n', makefile: 'all:\n' }, async (root) => {
+      expect((await detectLanguages(root)).map((l) => l.entry)).toEqual(['.R', 'makefile']);
+      await runCli(['init', '--root', root], { cwd: root });
+      const coverage = await runCli(['coverage', '--json', '--root', root], { cwd: root });
+      expect((JSON.parse(coverage.out) as { total: number }).total).toBe(2);
+    });
+  });
+
   test('detects languages, writes a starter .atlas/, and its config loads with no node_modules', async () => {
     await withRepo(
       {

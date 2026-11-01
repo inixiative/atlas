@@ -9,17 +9,20 @@ Atlas works on any repo: any language, docs and plain files included.
   (`//`, Zig), `dash` (`--`), `semicolon` (`;;`), `dotdot` (`..`, reST). The parser, the stamper,
   the walker and the hooks all read it; matching ignores case. A repo adds files with
   `comments: { hash: ['.nix', 'Tiltfile'] }` in `.atlas/config.ts`; an unknown style is refused.
-- **Line-comment blocks** are the `@atlas` line plus the axis lines after it (repeated prefixes
+- **Line-comment blocks** are the `@atlas` line plus the `@kind`/`@partOf`/`@uses`/`@constructs`
+  lines after it, so a neighbouring doc tag (`---@class`, `# @deprecated`) is never absorbed (repeated prefixes
   like `;;`, `##`, `---` read as one; an empty comment line between axes is bridged); the first
   other line ends the block, so neighbouring prose is never rewritten. A one-line block holding
   only `@atlas` is filled in place.
 - **The stamper** writes the block in the file's style, below a shebang (not `#![`), an Emacs
-  `-*- -*-` line, Python's or Ruby's encoding line, Dockerfile parser directives, Markdown front
+  `-*- -*-` line, Python's or Ruby's encoding line, Go build constraints, Dockerfile parser
+  directives, Markdown front
   matter, an XML prolog, `<?php` or CSS `@charset`. The C family writes plain `/* */` (`/**` is a
   doc comment in Rust, C#, Dart, Java and Go); JS/TS keep `/**`. Go and reST get a blank line
   after the block. A PHP file that starts as HTML gets none. A file with an unreadable `@atlas`
   comment never gets a second block; `stamp` reports both cases (`skipped`). An existing `/**`
-  block in a non-JS C-family file is rewritten to `/*` on its next stamp.
+  block in a non-JS C-family file is rewritten to `/*` on its next stamp. A UTF-8 byte-order mark
+  is kept.
 - **Files with no comment syntax** (`.json`, `.txt`, images) are tagged by the stamp rules that
   match their path, never edited. `FileRecord.tagging` is `inline` or `path`; `coverage` lists them
   as `pathTagged`; `check` says "no comment style for this file and no stamp rule tags its path".
@@ -30,7 +33,8 @@ Atlas works on any repo: any language, docs and plain files included.
   any other git failure is an error. Dot-directories are walked (`.github/`, `.claude/`); `.git`,
   `.atlas` (at any depth), `node_modules`, `dist` and submodules never are. A binary file with a
   source extension is skipped.
-- **`atlas init`** detects the repo's languages and writes `.atlas/config.ts` (an include list for
+- **`atlas init`** detects the repo's languages (include globs spelled as the files are, e.g.
+  `**/*.R`) and writes `.atlas/config.ts` (an include list for
   them), `kinds.ts` and `concepts.ts` (no concepts) from `examples/atlas-config/`.
 - **No install needed.** Imports of `@inixiative/atlas` in any `.atlas/**/*.ts` file are bound to
   the running atlas, so `bunx @inixiative/atlas …` works in a repo with no `package.json`.

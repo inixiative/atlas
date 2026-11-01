@@ -12,14 +12,17 @@ const EXAMPLE = resolve(import.meta.dir, '../../examples/atlas-config');
 export type Language = { entry: string; style: CommentStyleName; files: number };
 export type InitReport = { dir: string; languages: Language[]; written: string[] };
 
-// The table entries (`.py`, `Dockerfile`) the repo's files use, most files first.
+// The table entries (`.py`, `Dockerfile`) the repo's files use, most files first, spelled as the
+// files spell them: matching ignores case but the include globs don't, so `analysis.R` must
+// yield `**/*.R`, not the table's `.r`.
 export const detectLanguages = async (root: string): Promise<Language[]> => {
   const counts = new Map<string, Language>();
   for (const path of await walkFiles(root, [], () => true)) {
     const match = entryFor(path);
     if (!match) continue;
-    const { style, entry } = match;
-    const seen = counts.get(entry) ?? { entry, style, files: 0 };
+    const name = path.slice(path.lastIndexOf('/') + 1);
+    const entry = match.entry.startsWith('.') ? name.slice(-match.entry.length) : name;
+    const seen = counts.get(entry) ?? { entry, style: match.style, files: 0 };
     seen.files += 1;
     counts.set(entry, seen);
   }
@@ -60,7 +63,9 @@ export const init = async (root: string): Promise<InitReport> => {
   if (existsSync(dir)) throw new Error(`${dir} already exists; atlas init only starts a new one`);
   const languages = await detectLanguages(root);
   if (languages.length === 0)
-    throw new Error('no files in a comment style atlas knows; add one under comments in config');
+    throw new Error(
+      'no files in a comment style atlas knows; write .atlas/config.ts by hand and add your file types under `comments`',
+    );
 
   const files: Record<string, string> = {
     'config.ts': configSource(languages),

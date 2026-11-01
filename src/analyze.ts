@@ -39,10 +39,17 @@ export const consideredFiles = async (
   return paths.map((path) => ({ path, style: styleFor(path, config.comments) }));
 };
 
-// A file named like source but holding binary (a `.ts` video stream) is not read as text.
-export const readText = async (root: string, path: string): Promise<string | null> => {
-  const text = await Bun.file(resolve(root, path)).text();
-  return text.includes('\0') ? null : text;
+// A file's text, and whether it starts with a UTF-8 byte-order mark (Bun's decoder drops it, so
+// the stamper puts it back; PowerShell 5.1 reads a .ps1 without one as ANSI). Null for a file
+// named like source but holding binary (a `.ts` video stream).
+export const readText = async (
+  root: string,
+  path: string,
+): Promise<{ text: string; bom: boolean } | null> => {
+  const bytes = await Bun.file(resolve(root, path)).bytes();
+  if (bytes.includes(0)) return null;
+  const bom = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
+  return { text: new TextDecoder().decode(bytes), bom };
 };
 
 // A path-tagged file's annotation: what the rules say, or null when they say nothing.
@@ -61,9 +68,9 @@ export const analyze = async (root: string): Promise<Analysis> => {
   const considered = await consideredFiles(root, config);
   const files = await mapLimit(considered, READ_CONCURRENCY, async ({ path, style }) => {
     if (!style) return { path, tagging: 'path' as const, annotation: pathAnnotation(path, config) };
-    const text = await readText(root, path);
-    if (text === null) return null;
-    return { path, tagging: 'inline' as const, annotation: parseAtlasBlock(text, style) };
+    const read = await readText(root, path);
+    if (read === null) return null;
+    return { path, tagging: 'inline' as const, annotation: parseAtlasBlock(read.text, style) };
   });
   return { root, config, files: files.filter((f): f is FileRecord => f !== null) };
 };

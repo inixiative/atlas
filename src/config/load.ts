@@ -9,9 +9,11 @@ import type { AtlasConfigInput, LoadedConfig } from './defineConfig.ts';
 // node_modules (`bunx @inixiative/atlas check` in a Python repo) and never against another
 // installed version. Bun's runtime plugins ignore onResolve for bare imports, so the specifier
 // is rewritten on load.
+// Forward slashes: the path is spliced into a string literal, where a Windows `\` would be read
+// as an escape (`C:\Users\node_modules` → `C:Users<newline>ode_modules`). Bun accepts `C:/…`.
 const SELF: Record<string, string> = {
-  '@inixiative/atlas': resolve(import.meta.dir, '../index.ts'),
-  '@inixiative/atlas/config': resolve(import.meta.dir, './defineConfig.ts'),
+  '@inixiative/atlas': resolve(import.meta.dir, '../index.ts').replaceAll('\\', '/'),
+  '@inixiative/atlas/config': resolve(import.meta.dir, './defineConfig.ts').replaceAll('\\', '/'),
 };
 // only a module specifier: `from '…'`, `import '…'`, `import('…')`, never another string literal
 const ATLAS_IMPORT = /(\bfrom\s*|\bimport\s*\(?\s*)(['"])(@inixiative\/atlas(?:\/config)?)\2/g;

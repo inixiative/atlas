@@ -80,6 +80,11 @@ const locateInBlocks = (source: string, style: BlockStyle): LocatedBlock | null 
   return null;
 };
 
+// The axes the stamper writes back. A line block continues only through these, so a doc tag on
+// the next line (LuaLS `---@class`, YARD `# @deprecated`, `-- @name` in SQL) is never absorbed
+// into the block and dropped on the next stamp.
+const WRITTEN_AXIS = /^\s*@(?:kind|partOf|uses\??|constructs)\b/;
+
 // Line styles: the first comment line reading `@atlas`, then the axis lines after it (an empty
 // comment line between two axis lines is bridged). The block ends at its last axis line and stops
 // at the first other line, so prose comments next to it are never part of it, and the stamper
@@ -97,7 +102,7 @@ const locateInLines = (source: string, style: LineStyle): LocatedBlock | null =>
         start = offset;
         end = lineEnd;
       }
-    } else if (body !== undefined && AXIS_LINE.test(body)) {
+    } else if (body !== undefined && WRITTEN_AXIS.test(body)) {
       end = lineEnd;
     } else if (body === undefined || body.trim() !== '') break;
     offset += line.length + 1;
