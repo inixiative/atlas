@@ -16,11 +16,19 @@ export type Problem = {
 
 export type CheckResult = { ok: boolean; problems: Problem[] };
 
-// presence — every considered (non-ignored) file carries an @atlas block.
+// presence — every considered (non-ignored) file carries an @atlas block, or, when it can't hold
+// a comment, a stamp rule tags its path.
 export const checkPresence = (a: Analysis): Problem[] =>
   a.files
     .filter((f) => f.annotation === null)
-    .map((f) => ({ kind: 'presence' as const, file: f.path, message: 'missing @atlas block' }));
+    .map((f) => ({
+      kind: 'presence' as const,
+      file: f.path,
+      message:
+        f.tagging === 'path'
+          ? 'no comment style for this file and no stamp rule tags its path'
+          : 'missing @atlas block',
+    }));
 
 // vocab existence — @kind is in the vocab; @partOf/@uses name a concept that
 // EXISTS in the registry (not: is the file really part of it).

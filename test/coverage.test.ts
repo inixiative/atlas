@@ -10,6 +10,7 @@ const snapshot = (annotated: number, total: number): Coverage => ({
   annotated,
   unannotated: Array.from({ length: total - annotated }, (_, i) => `f${i}.ts`),
   uses: { uncurated: [], curatedEmpty: [], proposed: [], curated: [] },
+  pathTagged: [],
   unresolved: [],
 });
 

@@ -4,29 +4,34 @@ import { runCheck } from './commands/check.ts';
 import { coverage, evaluateCoverageGate, readBaseline } from './commands/coverage.ts';
 import { generate } from './commands/generate.ts';
 import { graph } from './commands/graph.ts';
+import { init } from './commands/init.ts';
 import { flagsToRule, type QueryRule, queryFiles, toQueryRecords } from './commands/query.ts';
 import { buildConceptGraph, buildCoverageReport } from './commands/report.ts';
 import { CLAUDE_SETTINGS, type SetupReport, setupClaudeHooks } from './commands/setup.ts';
-import { inScope, runStamp } from './commands/stamp.ts';
+import { inScope, resolveTargets, runStamp } from './commands/stamp.ts';
 import { HOOK_EVENTS, type HookEvent, runClaudeCodeHook } from './hook/claudeCode.ts';
 import { renderCoverageHtml } from './render/html.ts';
 import { renderCoverageMarkdown } from './render/markdown.ts';
+import type { StampSkip } from './stamp/patcher.ts';
 
 const HELP = `atlas — the map of the codebase
 
-Usage: atlas <command> [target] [flags]
+Usage: atlas <command> [targets…] [flags]
 
 Commands:
+  init                  start a .atlas/ here: config.ts with an include list for the languages
+                        found, kinds.ts, and an empty concepts.ts
   graph                 reverse indexes: concept → files, file → concepts, doc → concepts
-  check [target]        presence + vocab + reference + thesaurus existence (the CI command);
-                        a target scopes to a path and skips registry-wide reference checks
+  check [targets…]      presence + vocab + reference + thesaurus existence (the CI command);
+                        targets (files or folders; . is all) scope it and skip the
+                        registry-wide reference checks
   coverage              unannotated files; @uses curation buckets; unresolved memberships
                         gate with --min <pct> and/or --ratchet (vs a committed baseline)
   generate              write MAP.md from the annotated tree
   report                coverage gaps + concept graph → COVERAGE.md (Mermaid) and atlas.html (Cytoscape)
   query [predicate]     find files by axis — flags (--kind/--partOf/--uses/--path) and/or a
                         json-rules predicate (the same AST used for authz/filtering)
-  stamp [target]        write/refresh @atlas blocks from the config rules (the patcher)
+  stamp [targets…]      write/refresh @atlas blocks from the config rules (the patcher)
   hook read|grep        Claude Code PostToolUse hook: reads the hook JSON on stdin and prints
                         the concept neighbourhood (read) or matching concepts (grep) as
                         additionalContext; silent on any failure
@@ -35,7 +40,7 @@ Commands:
 
 Flags:
   --root <dir>          repo root to operate on (default: cwd)
-  --json                machine-readable output (graph/check/coverage/stamp)
+  --json                machine-readable output (init/graph/check/coverage/stamp/query/report/setup)
   --stdout              print to stdout instead of writing a file (generate, report)
   --out <dir>           output directory for report files (report; default: root)
   --md / --html         emit only one report format (report; default: both)
@@ -52,6 +57,14 @@ Flags:
   --help                this help`;
 
 type Flags = Record<string, string | boolean>;
+
+const SKIP_REASONS: Record<StampSkip, string> = {
+  unreadable:
+    'has a comment naming @atlas that is not a readable block (collapsed onto one line, or an example in a comment)',
+  'no-place': 'no place for a block (a PHP file must open with <?php)',
+  encoding:
+    'not valid in its encoding (e.g. Windows-1252); stamping would corrupt it — convert it to UTF-8 first',
+};
 
 // Flags that consume the next token as a value; everything else is boolean.
 const VALUE_FLAGS = new Set(['root', 'min', 'baseline', 'out', 'kind', 'partOf', 'uses', 'path']);
@@ -127,15 +140,24 @@ type Ctx = {
   env: CliEnv;
 };
 
+// "add atlas hook read, grep; refresh atlas hook grep", in the tense of the outcome
+const setupChanges = (r: SetupReport, done: boolean): string =>
+  [
+    ...(r.added.length ? [`${done ? 'added' : 'add'} atlas hook ${r.added.join(', ')}`] : []),
+    ...(r.refreshed.length
+      ? [`${done ? 'refreshed' : 'refresh'} atlas hook ${r.refreshed.join(', ')}`]
+      : []),
+  ].join('; ');
+
 const logSetup = (log: (s?: string) => void, r: SetupReport, offered: boolean): void => {
   if (r.status === 'unchanged') log(`✓ ${r.settings} already has the atlas hooks`);
   else if (r.status === 'dry-run')
     log(
       offered
         ? `skipped: ${r.settings} unchanged`
-        : `would add atlas hook ${r.added.join(', ')} to ${r.settings} — re-run with --yes to write`,
+        : `would ${setupChanges(r, false)} in ${r.settings} — re-run with --yes to write`,
     );
-  else log(`✓ ${r.status} ${r.settings}: added atlas hook ${r.added.join(', ')}`);
+  else log(`✓ ${r.status} ${r.settings}: ${setupChanges(r, true)}`);
   for (const n of r.notes) log(`  note: ${n}`);
 };
 
@@ -161,16 +183,33 @@ const dispatch = async (
       return done(0);
     }
 
+    case 'init': {
+      const report = await init(root);
+      if (json) log(JSON.stringify(report, null, 2));
+      else {
+        log(`✓ wrote ${report.written.join(', ')}`);
+        log('  languages found:');
+        for (const l of report.languages)
+          log(`    ${l.entry} — ${l.files} file(s), ${l.style} comments`);
+        log('next:');
+        log('  1. add concepts to .atlas/concepts.ts and stamp rules to .atlas/config.ts');
+        log('  2. bunx @inixiative/atlas stamp --write   (writes @atlas blocks from the rules)');
+        log('  3. bunx @inixiative/atlas check           (every file tagged, vocab valid)');
+        log('  4. bunx @inixiative/atlas setup --yes     (Claude Code read/grep hooks)');
+      }
+      return done(0);
+    }
+
     case 'setup': {
-      const plan = setupClaudeHooks(root, { write: false });
+      const plan = setupClaudeHooks(root, { write: false, version: await version() });
       let report = plan;
       let offered = false;
       if (plan.status === 'dry-run') {
-        const question = `Add atlas's PostToolUse hooks (${plan.added.join(', ')}) to ${CLAUDE_SETTINGS}?`;
+        const question = `Add or refresh atlas's PostToolUse hooks (${[...plan.added, ...plan.refreshed].join(', ')}) in ${CLAUDE_SETTINGS}?`;
         const confirm = flags.yes === true ? undefined : env.confirm;
         offered = confirm !== undefined;
         const accepted = flags.yes === true || (confirm !== undefined && (await confirm(question)));
-        if (accepted) report = setupClaudeHooks(root, { write: true });
+        if (accepted) report = setupClaudeHooks(root, { write: true, version: await version() });
       }
       if (json) log(JSON.stringify(report, null, 2));
       else logSetup(log, report, offered);
@@ -178,13 +217,13 @@ const dispatch = async (
     }
 
     case 'check': {
-      const target = positionals[1];
+      const targets = resolveTargets(root, positionals.slice(1));
       const warnOnly = flags['warn-only'] === true;
       const full = await analyze(root);
-      const scoped = target
-        ? { ...full, files: full.files.filter((f) => inScope(f.path, target)) }
+      const scoped = targets.length
+        ? { ...full, files: full.files.filter((f) => inScope(f.path, targets)) }
         : full;
-      const result = await runCheck(scoped, { references: target === undefined });
+      const result = await runCheck(scoped, { references: targets.length === 0 });
 
       if (json) log(JSON.stringify({ ...result, warnOnly }, null, 2));
       else if (result.ok) log('✓ atlas check passed');
@@ -242,6 +281,7 @@ const dispatch = async (
           log(
             `  unannotated (${c.unannotated.length}):\n${c.unannotated.map((f) => `    ${f}`).join('\n')}`,
           );
+        if (c.pathTagged.length) log(`  tagged by path (no comment style): ${c.pathTagged.length}`);
         log(
           `  @uses — curated ${c.uses.curated.length}, curated-empty ${c.uses.curatedEmpty.length}, proposed ${c.uses.proposed.length}, uncurated ${c.uses.uncurated.length}`,
         );
@@ -354,10 +394,18 @@ const dispatch = async (
     case 'stamp': {
       const mode = flags.overwrite === true ? 'overwrite' : 'additive';
       const write = flags.write === true;
-      const { changes, unresolved } = await runStamp(root, { mode, target: positionals[1], write });
+      const { changes, unresolved, skipped } = await runStamp(root, {
+        mode,
+        targets: resolveTargets(root, positionals.slice(1)),
+        write,
+      });
       if (json) {
         log(
-          JSON.stringify({ changes: changes.map((c) => ({ path: c.path })), unresolved }, null, 2),
+          JSON.stringify(
+            { changes: changes.map((c) => ({ path: c.path })), unresolved, skipped },
+            null,
+            2,
+          ),
         );
       } else {
         if (!changes.length) log('✓ nothing to stamp — already up to date');
@@ -375,6 +423,10 @@ const dispatch = async (
           );
           for (const u of unresolved) log(`  ${u.file}: ${u.category}:${u.value}`);
         }
+        if (skipped.length) {
+          log(`⚠ ${skipped.length} file(s) not stamped:`);
+          for (const s of skipped) log(`  ${s.file}: ${SKIP_REASONS[s.reason]}`);
+        }
       }
       return done(0);
     }
@@ -385,3 +437,6 @@ const dispatch = async (
       return done(1);
   }
 };
+
+// `bun src/cli.ts …` runs the CLI as well; the package's bin is bin/atlas.ts.
+if (import.meta.main) await import('../bin/atlas.ts');

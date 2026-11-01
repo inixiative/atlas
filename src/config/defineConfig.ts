@@ -1,4 +1,5 @@
 import type { ConceptRegistry, Thesaurus } from '../registry/types.ts';
+import type { CommentTable } from '../syntax/comments.ts';
 
 // `partOfFor` is a LAZY descriptor, not a value. The consumer's config.ts can
 // reference it before the concept registry is loaded; the stamp engine resolves it
@@ -49,17 +50,24 @@ export type ReferenceResolver = (value: string) => string;
 type ConfigDefaults = {
   stamp: StampRule[]; // path → tag rules
   ignore: string[]; // files exempt from presence + stamping (tests, barrels)
-  include: string[]; // file globs atlas considers (default: common source files)
   references: Record<string, ReferenceResolver>;
 };
 
-export type AtlasConfigInput = Partial<ConfigDefaults>;
+export type AtlasConfigInput = Partial<ConfigDefaults> & {
+  // file globs atlas considers. Unset: every file in a comment style atlas knows, plus every
+  // file a stamp rule tags by its path.
+  include?: string[];
+  // more files per comment style: `{ hash: ['.nix', 'Tiltfile'] }` (`.ext` or an exact name)
+  comments?: CommentTable;
+};
 
 export const defineConfig = (config: AtlasConfigInput): AtlasConfigInput => config;
 
 // What the loader hands the engine once defaults are applied and vocab/registry
 // are loaded from the sibling .atlas/ files.
 export type LoadedConfig = ConfigDefaults & {
+  include: string[] | null; // null: the default (see AtlasConfigInput.include)
+  comments: Required<CommentTable>; // atlas's table merged with the repo's additions
   kinds: readonly string[];
   concepts: ConceptRegistry;
   thesaurus: Thesaurus;

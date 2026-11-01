@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { matchGlob } from '../src/config/glob.ts';
 import { loadConfig } from '../src/config/load.ts';
 import { walkFiles } from '../src/fs/walk.ts';
 
@@ -101,7 +102,10 @@ describe('loadConfig', () => {
 
 describe('walkFiles', () => {
   test('returns source files honoring include and ignore globs', async () => {
-    const files = await walkFiles(MINI, ['src/**/*.ts'], ['**/*.test.ts', '**/index.ts']);
+    const include = ['src/**/*.ts'];
+    const files = await walkFiles(MINI, ['**/*.test.ts', '**/index.ts'], (path) =>
+      include.some((glob) => matchGlob(glob, path) !== null),
+    );
     expect(files).toEqual([
       'src/jobs/sendEmail.ts',
       'src/lib/legacy.ts',

@@ -1,8 +1,47 @@
 import { resolve } from 'node:path';
-import { DEFAULT_INCLUDE } from '../fs/walk.ts';
 import type { ConceptRegistry, Thesaurus } from '../registry/types.ts';
+import { COMMENT_STYLES, type CommentTable, mergeCommentTable } from '../syntax/comments.ts';
 import { DEFAULT_KINDS } from '../vocab/kinds.ts';
 import type { AtlasConfigInput, LoadedConfig } from './defineConfig.ts';
+
+// `.atlas/**/*.ts` imports `@inixiative/atlas` (defineConfig, partOfFor, DEFAULT_KINDS). Bind those
+// imports to the atlas that is running, so the config loads in a repo with no package.json or
+// node_modules (`bunx @inixiative/atlas check` in a Python repo) and never against another
+// installed version. Bun's runtime plugins ignore onResolve for bare imports, so the specifier
+// is rewritten on load.
+const SELF: Record<string, string> = {
+  '@inixiative/atlas': resolve(import.meta.dir, '../index.ts'),
+  '@inixiative/atlas/config': resolve(import.meta.dir, './defineConfig.ts'),
+};
+// only a module specifier: `from '…'`, `import '…'`, `import('…')`, never another string literal
+const ATLAS_IMPORT = /(\bfrom\s*|\bimport\s*\(?\s*)(['"])(@inixiative\/atlas(?:\/config)?)\2/g;
+
+// Rewrite a config file's atlas imports to `paths`. The path is spliced into the file's own
+// string literal, so it is written with forward slashes (a Windows `\` would be read as an
+// escape: `C:\Users\node_modules` → `C:Users<newline>ode_modules`; Bun accepts `C:/…`) and the
+// literal's quote is escaped (an install under `O'Brien/`).
+export const bindAtlasImports = (source: string, paths: Record<string, string> = SELF): string =>
+  source.replace(ATLAS_IMPORT, (match, keyword: string, quote: string, specifier: string) => {
+    const path = paths[specifier];
+    if (!path) return match;
+    return `${keyword}${quote}${path.replaceAll('\\', '/').replaceAll(quote, `\\${quote}`)}${quote}`;
+  });
+
+let bound = false;
+const bindSelfImports = (): void => {
+  if (bound) return;
+  bound = true;
+  Bun.plugin({
+    name: 'atlas-config-self',
+    target: 'bun',
+    setup(build) {
+      build.onLoad({ filter: /[\\/]\.atlas[\\/].+\.[cm]?ts$/ }, async ({ path }) => ({
+        loader: 'ts',
+        contents: bindAtlasImports(await Bun.file(path).text()),
+      }));
+    },
+  });
+};
 
 // Import a `.atlas/` file if it exists; missing files are optional (atlas ships
 // defaults for vocab), but a present file with a real error propagates.
@@ -24,10 +63,26 @@ const named = <T>(
   throw new Error(`.atlas/${file} exists but exports none of: ${names.join(', ')}`);
 };
 
+// `comments` names styles atlas has; a typo would silently tag nothing, so refuse it.
+const validComments = (comments: CommentTable | undefined): CommentTable | undefined => {
+  for (const [style, entries] of Object.entries(comments ?? {})) {
+    if (!(style in COMMENT_STYLES))
+      throw new Error(
+        `.atlas/config.ts: comments.${style} is not a comment style (${Object.keys(COMMENT_STYLES).join(', ')})`,
+      );
+    if (!Array.isArray(entries) || entries.some((e) => typeof e !== 'string' || e === ''))
+      throw new Error(
+        `.atlas/config.ts: comments.${style} must list '.ext' extensions or file names`,
+      );
+  }
+  return comments;
+};
+
 // Load the consumer's `.atlas/` config: kinds → concepts → thesaurus → config (no
 // evaluation-order coupling, since partOfFor is a lazy descriptor). atlas ships
 // the kinds defaults; the repo OWNS concepts.ts and the optional thesaurus.ts.
 export const loadConfig = async (root: string): Promise<LoadedConfig> => {
+  bindSelfImports();
   const dir = resolve(root, '.atlas');
   const [kindsMod, conceptsMod, thesaurusMod, configMod] = await Promise.all([
     loadModule(resolve(dir, 'kinds.ts')),
@@ -71,12 +126,13 @@ export const loadConfig = async (root: string): Promise<LoadedConfig> => {
   }
 
   return {
+    include: cfg.include ?? null,
+    comments: mergeCommentTable(validComments(cfg.comments)),
     kinds,
     concepts,
     thesaurus,
     stamp: cfg.stamp ?? [],
     ignore: cfg.ignore ?? [],
-    include: cfg.include ?? DEFAULT_INCLUDE,
     references: cfg.references ?? {},
   };
 };

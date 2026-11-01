@@ -73,7 +73,7 @@ export const renderNeighbourhood = (
       siblings.length > SIBLING_SAMPLE ? [`  … ${siblings.length - SIBLING_SAMPLE} more`] : [];
     const consumers = graph.usesConsumers[concept]?.length ?? 0;
     return [
-      `${concept} — ${siblings.length} other file(s)${consumers > 0 ? `, ${consumers} consumer(s) via @uses` : ''}; \`bunx atlas query --partOf ${concept}\` lists all`,
+      `${concept} — ${siblings.length} other file(s)${consumers > 0 ? `, ${consumers} consumer(s) via @uses` : ''}; \`bunx @inixiative/atlas query --partOf ${concept}\` lists all`,
       ...sample,
       ...more,
     ].join('\n');
@@ -81,7 +81,7 @@ export const renderNeighbourhood = (
   const usesBlock =
     membership.uses.length > 0
       ? [
-          `@uses ${membership.uses.join(', ')} — load-bearing dependencies; \`bunx atlas query --partOf <concept>\` shows what implements each`,
+          `@uses ${membership.uses.join(', ')} — load-bearing dependencies; \`bunx @inixiative/atlas query --partOf <concept>\` shows what implements each`,
         ]
       : [];
   const kinds = kindLines(graph, relPath, membership.partOf, options.kinds ?? REACH_KINDS);
@@ -230,7 +230,7 @@ const conceptBlock = (graph: Graph, concept: string, label: string): string => {
   const consumers = graph.usesConsumers[concept]?.length ?? 0;
   const doc = graph.thesaurus[concept]?.doc;
   return [
-    `${concept}${label} — ${files.length} file(s)${consumers > 0 ? `, ${consumers} consumer(s) via @uses` : ''}; \`bunx atlas query --partOf ${concept}\` lists all`,
+    `${concept}${label} — ${files.length} file(s)${consumers > 0 ? `, ${consumers} consumer(s) via @uses` : ''}; \`bunx @inixiative/atlas query --partOf ${concept}\` lists all`,
     ...(doc ? [`  read: ${doc}`] : []),
     ...sample,
     ...more,

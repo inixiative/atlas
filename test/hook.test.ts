@@ -77,11 +77,11 @@ describe('renderNeighbourhood', () => {
         '',
         'factory, 1 of 2 factories in primitive:testFactories',
         '',
-        'primitive:testFactories — 2 other file(s), 1 consumer(s) via @uses; `bunx atlas query --partOf primitive:testFactories` lists all',
+        'primitive:testFactories — 2 other file(s), 1 consumer(s) via @uses; `bunx @inixiative/atlas query --partOf primitive:testFactories` lists all',
         `  ${BUILD_FACTORY}`,
         '  src/test/factories/organizationFactory.ts',
         '',
-        '@uses feature:users — load-bearing dependencies; `bunx atlas query --partOf <concept>` shows what implements each',
+        '@uses feature:users — load-bearing dependencies; `bunx @inixiative/atlas query --partOf <concept>` shows what implements each',
       ].join('\n'),
     );
   });
@@ -136,7 +136,7 @@ describe('renderConceptMatches', () => {
 describe('renderConceptMatches — thesaurus', () => {
   const thesaurusBlock = (word: string) =>
     [
-      `primitive:testFactories (thesaurus "${word}") — 3 file(s), 1 consumer(s) via @uses; \`bunx atlas query --partOf primitive:testFactories\` lists all`,
+      `primitive:testFactories (thesaurus "${word}") — 3 file(s), 1 consumer(s) via @uses; \`bunx @inixiative/atlas query --partOf primitive:testFactories\` lists all`,
       '  read: docs/TESTING.md#factories',
       '  src/test/factories/buildFactory.ts',
       '  src/test/factories/organizationFactory.ts',
@@ -228,7 +228,7 @@ describe('renderConceptMatches — thesaurus', () => {
     const g = graph(await analyze(FIXTURE));
     expect(renderConceptMatches(g, 'seed a user')).toContain('  read: docs/TESTING.md#factories\n');
     expect(renderConceptMatches(g, 'lock')).toContain(
-      '— 1 file(s), 2 consumer(s) via @uses; `bunx atlas query --partOf primitive:routeTemplates` lists all\n  read: docs/ROUTES.md\n  src/routes/makeController.ts',
+      '— 1 file(s), 2 consumer(s) via @uses; `bunx @inixiative/atlas query --partOf primitive:routeTemplates` lists all\n  read: docs/ROUTES.md\n  src/routes/makeController.ts',
     );
     expect(renderConceptMatches(g, 'oauth')).not.toContain('read:');
   });

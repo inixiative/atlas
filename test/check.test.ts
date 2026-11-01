@@ -4,6 +4,7 @@ import { analyze } from '../src/analyze.ts';
 import { checkThesaurus, checkVocab, runCheck } from '../src/commands/check.ts';
 import type { AtlasAnnotation } from '../src/parse/parseAtlasBlock.ts';
 import type { Thesaurus } from '../src/registry/types.ts';
+import { COMMENT_TABLE } from '../src/syntax/comments.ts';
 
 const MINI = resolve(import.meta.dir, 'fixtures/mini');
 
@@ -41,11 +42,13 @@ describe('checkVocab', () => {
         stamp: [],
         ignore: [],
         include: [],
+        comments: COMMENT_TABLE,
         references: {},
       },
       files: [
         {
           path: 'a.ts',
+          tagging: 'inline',
           annotation: ann({
             kind: ['bogus'],
             partOf: ['feature:ghost'],
@@ -72,10 +75,15 @@ describe('checkVocab', () => {
           stamp: [],
           ignore: [],
           include: [],
+          comments: COMMENT_TABLE,
           references: {},
         },
         files: [
-          { path: 'a.ts', annotation: ann({ kind: ['controller'], partOf: ['feature:billing'] }) },
+          {
+            path: 'a.ts',
+            tagging: 'inline',
+            annotation: ann({ kind: ['controller'], partOf: ['feature:billing'] }),
+          },
         ],
       }),
     ).toEqual([]);
@@ -95,6 +103,7 @@ describe('checkThesaurus', () => {
           stamp: [],
           ignore: [],
           include: [],
+          comments: COMMENT_TABLE,
           references: { docs: (v) => `docs/${v}` },
         },
         files: [],
@@ -166,6 +175,7 @@ describe('checkReferences — resolver safety', () => {
         stamp: [],
         ignore: [],
         include: [],
+        comments: COMMENT_TABLE,
         references: {
           docs: () => {
             throw new Error('boom');

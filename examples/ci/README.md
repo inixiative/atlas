@@ -7,7 +7,7 @@ on any problem). These are copy-paste examples for wiring it in. Pick the ones y
 |------|--------------|
 | [`github-actions.yml`](./github-actions.yml) | Full-repo check + coverage ratchet + `MAP.md` freshness gate (push/PR) |
 | [`github-actions-incremental.yml`](./github-actions-incremental.yml) | Check only the paths changed in a PR |
-| [`pre-commit`](./pre-commit) | Local git hook: check staged source dirs before commit |
+| [`pre-commit`](./pre-commit) | Local git hook: check the staged files before commit |
 
 ## Rollout (DEV-003 Phase 4): warn-only → enforcing
 
@@ -16,7 +16,7 @@ flip the switch gradually:
 
 1. **Warn-only** — `atlas check --warn-only` prints problems but always exits 0. Wire it into CI so
    the signal is visible without blocking merges while you back-fill annotations.
-2. **Incremental enforcing** — gate only the paths a PR touches with `atlas check <path>` (skips the
+2. **Incremental enforcing** — gate only the files a PR touches with `atlas check <paths…>` (skips the
    registry-wide reference check, so it's about the changed files only). New code must be annotated;
    legacy code is grandfathered.
 3. **Fully enforcing** — once coverage is high, drop to plain `atlas check` on the whole repo.

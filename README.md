@@ -6,7 +6,8 @@ on the structural facts* — because atlas only ever asserts what is mechanicall
 how it connects), never maturity or correctness.
 
 It's a Biome-shaped tool: a small CLI plus a `.atlas/` config folder. The tool is generic; **your
-repo defines its own vocabulary.**
+repo defines its own vocabulary**, in any language: the block is written in the file's own comment
+syntax, and a file that can't hold a comment is tagged by its path.
 
 ```ts
 /**
@@ -15,6 +16,12 @@ repo defines its own vocabulary.**
  * @partOf feature:tenancy
  * @uses primitive:authz, infrastructure:redis
  */
+```
+
+```py
+# @atlas
+# @kind service
+# @partOf feature:signing
 ```
 
 ## Why
@@ -30,10 +37,80 @@ hyper-specific label. Keep the vocabulary broad but closed; apply it liberally.
 ## Install
 
 ```bash
-bun add -d @inixiative/atlas
+bun add -d @inixiative/atlas      # a JavaScript/TypeScript repo
+bunx @inixiative/atlas init       # any repo: no package.json or node_modules needed
 ```
 
-atlas is Bun-native (it imports your `.atlas/*.ts` config directly).
+atlas runs on Bun (it imports your `.atlas/*.ts` config directly). The config's own
+`@inixiative/atlas` imports (in any file under `.atlas/`) are bound to the atlas that is running,
+so a Python, Go or docs repo needs nothing installed besides Bun.
+
+**A repo you don't trust.** Running atlas runs that repo's code: it imports `.atlas/**/*.ts`, and
+Bun applies the `bunfig.toml` of the directory you run it from (a `preload` there runs first).
+Read `.atlas/` before running atlas on such a repo, run it from a neutral directory with
+`--root <repo>`, or use a sandbox. atlas itself can't block a preload; Bun runs it before atlas
+starts.
+
+## Any language
+
+atlas reads one table of comment styles, grouped by how a language writes a comment, and
+`check`, `stamp`, `graph` and the hooks all use it:
+
+| Style | Block | Files |
+|---|---|---|
+| `c` | `/* … */` (JS/TS: `/** … */`) | `.ts` `.tsx` `.mts` `.cts` `.js` `.jsx` `.mjs` `.cjs` `.go` `.java` `.kt` `.kts` `.rs` `.c` `.h` `.cc` `.cpp` `.hpp` `.cs` `.swift` `.scala` `.dart` `.groovy` `.proto` `.css` `.scss` `.less` `.php` |
+| `html` | `<!-- … -->` | `.md` `.markdown` `.html` `.htm` `.xml` `.vue` `.svelte` |
+| `mdx` | `{/* … */}` | `.mdx` |
+| `hash` | `# ` lines | `.py` `.pyi` `.rb` `.sh` `.bash` `.zsh` `.fish` `.yaml` `.yml` `.toml` `.ex` `.exs` `.r` `.pl` `.pm` `.tf` `.nix` `.cmake` `.ps1` `.dockerfile` `Dockerfile` `Containerfile` `Makefile` `GNUmakefile` `Gemfile` `Rakefile` `Justfile` `Procfile` |
+| `slash` | `// ` lines | `.zig` |
+| `dash` | `-- ` lines | `.sql` `.lua` `.hs` `.elm` |
+| `semicolon` | `;; ` lines | `.clj` `.cljs` `.cljc` `.edn` `.lisp` `.el` `.scm` `.rkt` |
+| `dotdot` | `.. ` lines | `.rst` |
+
+Add files to a style in `.atlas/config.ts`: `comments: { hash: ['.nix', 'Tiltfile'] }` (`.ext` or
+an exact file name; listing one under another style moves it there).
+
+- **Line styles** (`#`, `//`, `--`, `;;`, `..`): the block is the `@atlas` line plus the
+  `@kind`/`@partOf`/`@uses`/`@constructs` lines right after it (repeated prefixes like `;;` and
+  `##` read as one; an empty comment line between them is bridged). Any other line ends it, so a
+  prose comment or a doc tag next to the block (LuaLS `---@class`, YARD `# @deprecated`) is never
+  part of it and never rewritten.
+- **Placement.** A fresh block goes at the top, below what must stay first: a shebang (not Rust's
+  `#![…]`), an Emacs `-*- … -*-` line, Python's or Ruby's encoding line, Go build constraints,
+  Dockerfile parser directives, Markdown front matter, an XML prolog, `<?php`, CSS `@charset`. Language rules on
+  top of the style:
+  - the C family writes plain `/* */`, because `/**` is a doc comment in Rust (an error before
+    `//!`), C#, Dart, Java and Go; JS/TS keep `/**`;
+  - Go and reST get a blank line after the block (in Go a comment touching `package` becomes the
+    package doc; reST ends a comment only at a blank line);
+  - a PHP file gets a block only below `<?php`; one that starts as HTML is left alone.
+- **Stamp never hides a block.** A file with an `@atlas` comment atlas can't read (a block a
+  formatter collapsed onto one line) gets no second block; `stamp` lists it, and any file it
+  can't place a block in, for a hand fix. A one-line opener (`<!-- @atlas -->`, `/** @atlas */`)
+  is filled in place.
+- **No comment syntax** (`.json`, `.txt`, `.csv`, images): the file is never edited. The stamp
+  rules that match its path are its tags (`@kind`/`@partOf`; such a file has no `@uses`), and it
+  appears in the graph and the hooks like any other. `coverage` counts these files as "tagged by
+  path".
+- **Which files.** With `include` unset, atlas considers every file in a known comment style
+  plus every file a stamp rule tags by path. Files come from git (tracked, plus untracked files not
+  in `.gitignore`), so generated output and nested worktrees stay out. Outside a git work tree
+  every file is listed, and so is a root the enclosing repo ignores; any other git failure is an
+  error. Dot-directories are walked (`.github/`, `.claude/`); `.git`, `.atlas` (at any depth),
+  `node_modules` and `dist` never are, and neither are submodules, symlinks, atlas's own outputs
+  (`MAP.md` at the root; `COVERAGE.md` and `atlas.html` at any depth, wherever `report --out`
+  put them) or `pnpm-lock.yaml`. A file named like source but
+  holding binary (NUL bytes and not valid UTF-8), or stored as UTF-32 or as UTF-16 without a
+  byte-order mark, is skipped. A UTF-16 file with a byte-order mark is read,
+  and stamping writes a file back in its own encoding (UTF-8, UTF-8 with a byte-order mark,
+  UTF-16). A file whose bytes aren't valid in its encoding (a Windows-1252 `.ps1`) is read for
+  `check` and `graph`, but `stamp` leaves it alone and lists it under `skipped`: writing it back
+  would corrupt those bytes.
+- **Limits.** atlas reads comments, not the language around them, so an `@atlas` block inside a
+  string (a Python string, a shell heredoc, a JS template literal) reads as the file's block, and
+  `stamp` (`--overwrite` included) rewrites it, which changes that string. Matching ignores case.
+
+atlas maps files, not the functions inside them, in every language.
 
 ## Configure
 
@@ -81,15 +158,16 @@ A complete, commented set you can copy into your repo's `.atlas/` is in
 ## CLI
 
 ```bash
-atlas graph       # reverse indexes: concept → files, file → concepts, doc → concepts
-atlas check       # presence + vocab + reference + thesaurus existence  (the CI command)
-atlas coverage    # unannotated files; @uses curation buckets; unresolved memberships
-atlas generate    # write MAP.md from the annotated tree
-atlas report      # coverage gaps + concept graph → COVERAGE.md (Mermaid) and atlas.html (Cytoscape)
-atlas stamp [dir] # write/refresh @atlas blocks from the rules (the patcher; dry-run by default)
-atlas hook read   # Claude Code PostToolUse hook: the concept neighbourhood of the file just read
-atlas hook grep   # Claude Code PostToolUse hook: the concepts a grep pattern names
-atlas setup       # offer to add both hooks to .claude/settings.json (--yes: no prompt)
+atlas init            # start a .atlas/: include list for the languages found, kinds, empty concepts
+atlas graph           # reverse indexes: concept → files, file → concepts, doc → concepts
+atlas check [paths…]  # presence + vocab + reference + thesaurus existence  (the CI command)
+atlas coverage        # unannotated files; @uses curation buckets; unresolved memberships
+atlas generate        # write MAP.md from the annotated tree
+atlas report          # coverage gaps + concept graph → COVERAGE.md (Mermaid) and atlas.html (Cytoscape)
+atlas stamp [paths…]  # write/refresh @atlas blocks from the rules (the patcher; dry-run by default)
+atlas hook read       # Claude Code PostToolUse hook: the concept neighbourhood of the file just read
+atlas hook grep       # Claude Code PostToolUse hook: the concepts a grep pattern names
+atlas setup           # offer to add both hooks to .claude/settings.json (--yes: no prompt)
 ```
 
 Common flags: `--root <dir>`, `--json`, `generate --stdout`, `stamp --write`, `stamp --overwrite`,
@@ -102,7 +180,7 @@ line into your agent's system prompt / `CLAUDE.md` / `AGENTS.md` so it navigates
 instead of crawling folders:
 
 > This repo is mapped by **atlas**. To find code by concept instead of by filename: read `MAP.md`
-> for the concept overview; run `bunx atlas graph --json` for the reverse indexes (concept → files via
+> for the concept overview; run `bunx @inixiative/atlas graph --json` for the reverse indexes (concept → files via
 > `@partOf`, concept → consumers via `@uses`); and read a file's top-of-file `@atlas` block
 > (`@kind` / `@partOf` / `@uses`) before its body. Prefer these over `grep` for "what touches X" /
 > "what's part of Y" questions.
@@ -126,11 +204,11 @@ atlas neighbourhood of src/test/factories/userFactory.ts:
 
 factory, 1 of 2 factories in primitive:testFactories
 
-primitive:testFactories — 2 other file(s), 1 consumer(s) via @uses; `bunx atlas query --partOf primitive:testFactories` lists all
+primitive:testFactories — 2 other file(s), 1 consumer(s) via @uses; `bunx @inixiative/atlas query --partOf primitive:testFactories` lists all
   src/test/factories/buildFactory.ts
   src/test/factories/organizationFactory.ts
 
-@uses feature:users — load-bearing dependencies; `bunx atlas query --partOf <concept>` shows what implements each
+@uses feature:users — load-bearing dependencies; `bunx @inixiative/atlas query --partOf <concept>` shows what implements each
 ```
 
 A file of `@kind factory` or `@kind constructor` also gets a line counting that kind in its
@@ -140,7 +218,10 @@ concepts' files are listed.
 
 Install them with `atlas setup` (asks first; `atlas setup --yes` for scripts and agents). It
 merges two `PostToolUse` entries into `.claude/settings.json`, leaves every other key and hook as it
-was, and adds nothing on a second run:
+was, and adds nothing on a second run. A repo whose `package.json` depends on
+`@inixiative/atlas` runs its own install, as below. Any other repo gets
+`cd "$CLAUDE_PROJECT_DIR" && bunx @inixiative/atlas@<version> hook read || true`,
+pinned to the atlas that wrote it.
 
 ```json
 {
@@ -241,7 +322,7 @@ listed. Then come the concept-name matches not already shown:
 ```
 atlas concept(s) matching "seeding.*users?":
 
-primitive:testFactories (thesaurus "seed a user") — 3 file(s), 1 consumer(s) via @uses; `bunx atlas query --partOf primitive:testFactories` lists all
+primitive:testFactories (thesaurus "seed a user") — 3 file(s), 1 consumer(s) via @uses; `bunx @inixiative/atlas query --partOf primitive:testFactories` lists all
   read: docs/claude/TESTING.md#factories
   src/test/factories/buildFactory.ts
   src/test/factories/organizationFactory.ts
@@ -250,7 +331,7 @@ primitive:testFactories (thesaurus "seed a user") — 3 file(s), 1 consumer(s) v
 
 `atlas check` flags an entry for a concept the registry doesn't have, an empty phrase list, an empty
 phrase (one with no letter or digit), and a `doc` whose file doesn't resolve to a real file; a
-scoped `atlas check <target>` skips the doc check like the other reference checks. `loadConfig`
+scoped `atlas check <paths…>` skips the doc check like the other reference checks. `loadConfig`
 refuses an entry with any key besides `phrases` and `doc`, so a `docs:` typo can't silently fall
 back to the default doc. Whether a phrase is apt is the curator's call.
 
@@ -316,7 +397,8 @@ Absence is meaningful, so atlas leaves `@uses` out of stamping entirely:
 Blanks are fillable on demand — the `eslint --fix` shape. Always **dry-run by default**; pass
 `--write` to apply.
 
-- **Targeting** — `all` (default), a folder, or a single file.
+- **Targeting** — the whole repo by default, or any number of files and folders (`src/`, `./src`, `.`),
+  each resolved against the repo root; a target that doesn't exist or lies outside it is an error.
 - **Additive (default)** — fill only what's absent; never modify an existing tag; never touch `@uses`.
 - **Overwrite (`--overwrite`)** — resync the derivable axes (`@kind`/`@partOf`) to the current
   rules; **never** overwrites curated `@uses`. A `@atlas pin` block is exempt.
@@ -331,7 +413,7 @@ codebase is **warn-only → incremental enforcing → fully enforcing**:
 
 ```bash
 atlas check --warn-only   # prints problems, never fails CI (rollout start)
-atlas check <path>        # enforce only changed paths (skips registry-wide reference checks)
+atlas check <paths…>      # enforce only the files a PR changes (skips registry-wide reference checks)
 atlas check               # enforce the whole repo
 ```
 
