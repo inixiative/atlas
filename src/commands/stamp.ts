@@ -1,4 +1,4 @@
-import { lstatSync, realpathSync } from 'node:fs';
+import { existsSync, lstatSync, realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { consideredFiles, encodeText, readText, type TextEncoding } from '../analyze.ts';
 import type { LoadedConfig } from '../config/defineConfig.ts';
@@ -38,19 +38,26 @@ const onDisk = (path: string): string => {
     ? join(realpathSync.native(dirname(path)), basename(path))
     : realpathSync.native(path);
 };
-export const resolveTargets = (root: string, raw: string[]): string[] =>
-  raw.map((target) => {
+export const resolveTargets = (root: string, raw: string[]): string[] => {
+  if (raw.length === 0) return [];
+  if (!existsSync(root)) throw new Error(`no such directory: ${root}`);
+  // the root itself is resolved fully, link included (a project registered through a symlink)
+  const realRoot = realpathSync.native(resolve(root));
+  return raw.map((target) => {
     const absolute = resolve(root, target);
     try {
       lstatSync(absolute);
     } catch {
       throw new Error(`no such file or folder: ${target}`);
     }
-    const rel = relative(onDisk(resolve(root)), onDisk(absolute));
+    // the root itself (`.`, or the root path when it is a symlink) is the whole repo
+    if (absolute === resolve(root)) return '.';
+    const rel = relative(realRoot, onDisk(absolute));
     if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel))
       throw new Error(`target is outside the repo root: ${target}`);
     return rel === '' ? '.' : rel.replaceAll(sep, '/');
   });
+};
 
 // Pure: what stamping a file WOULD do, or null if it's already up to date.
 export const computeStamp = (

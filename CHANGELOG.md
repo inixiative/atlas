@@ -29,14 +29,15 @@ Atlas works on any repo: any language, docs and plain files included.
 - **Walking.** `include` unset now means every file in a known comment style plus every file a
   rule tags. Files come from `git ls-files` (tracked, and untracked files not in `.gitignore`), so
   generated output and nested worktrees stay out, and `node_modules` is never scanned: `graph`
-  on a 3,800-file repo went from 4.2 s to 1.0 s (median of 5 warm runs, same machine). Outside a
-  git work tree, or at a root the enclosing repo ignores, every file is listed; any other git
+  on a repo of 19,000 tracked files (3,800 mapped) went from 4.2 s to 1.0 s (median of 5 warm
+  runs, same machine). Outside a git work tree, or at a root the enclosing repo ignores, every file is listed; any other git
   failure is an error, and a missing `--root` says so. Dot-directories are walked (`.github/`,
   `.claude/`); `.git`, `.atlas` (at any depth), `node_modules`, `dist`, submodules and symlinks
   never are, nor atlas's own outputs (`MAP.md` at the root, `COVERAGE.md` and `atlas.html` at any
   depth) or `pnpm-lock.yaml`.
   A binary (NUL bytes and not valid UTF-8), UTF-32 or BOM-less UTF-16 file with a source extension is
-  skipped; valid UTF-8 holding a NUL is read. A UTF-16 file with a BOM is read,
+  skipped; valid UTF-8 holding a stray NUL is read (a file over a tenth NUL bytes reads
+  as BOM-less UTF-16 and is skipped). A UTF-16 file with a BOM is read,
   and a stamped file is written back in its own encoding (UTF-8, UTF-8 with a BOM, UTF-16); a
   file whose bytes aren't valid in its encoding (Windows-1252) is never stamped (`skipped`).
 - **Targets.** `check` and `stamp` take any number of files or folders (`./src`, `src/`, `.`,

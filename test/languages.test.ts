@@ -1056,3 +1056,28 @@ describe('round-7 review', () => {
     );
   });
 });
+
+describe('round-8 review', () => {
+  test('a --root that is a symlink accepts targets inside it', async () => {
+    await withRepo(
+      {
+        'real/.atlas/config.ts': `export default { include: ['src/*.py'] };\n`,
+        'real/src/a.py': 'x\n',
+      },
+      async (base) => {
+        symlinkSync('real', join(base, 'link'));
+        const root = join(base, 'link');
+        expect(resolveTargets(root, ['src', 'src/a.py', '.'])).toEqual(['src', 'src/a.py', '.']);
+        expect(() => resolveTargets(root, ['..'])).toThrow('outside the repo root');
+        const check = await runCli(['check', 'src', '--root', root], { cwd: base });
+        expect(check.out).toContain('src/a.py');
+      },
+    );
+  });
+
+  test('a missing --root with targets says so', () => {
+    expect(() => resolveTargets('/no/such/root', ['/no/such/root/a.py'])).toThrow(
+      'no such directory: /no/such/root',
+    );
+  });
+});
