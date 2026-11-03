@@ -1,7 +1,7 @@
 {
   "name": "@inixiative/atlas",
   "version": "0.5.0",
-  "description": "The map of the codebase — @atlas code annotations + a seam registry + a drift-proof MAP.md. A map that can only assert what is mechanically true.",
+  "description": "The map of the codebase: @atlas code annotations, a concept registry and a MAP.md that asserts only what is mechanically true, so it cannot drift",
   "type": "module",
   "license": "MIT",
   "author": "inixiative",
