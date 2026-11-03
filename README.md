@@ -1,8 +1,10 @@
 # atlas
 
+> One of the [inixiative](https://www.inixiative.com) building blocks. Stop rediscovering what you need to build. See [all the projects](https://github.com/inixiative).
+
 **The map of the codebase.** atlas reads `@atlas` annotations declared at the top of each file,
 validates them against a repo-owned **concept registry**, and generates a `MAP.md` that *cannot drift
-on the structural facts* — because atlas only ever asserts what is mechanically true (what exists,
+on the structural facts*, because atlas only asserts what is mechanically true (what exists,
 how it connects), never maturity or correctness.
 
 It's a Biome-shaped tool: a small CLI plus a `.atlas/` config folder. The tool is generic; **your
@@ -27,8 +29,8 @@ syntax, and a file that can't hold a comment is tagged by its path.
 ## Why
 
 Hand-maintained maps (FEATURES.md, docs, prose) drift from the code. atlas makes the map a
-*projection* of the code: every file declares traversable **concepts** — what it is, what it's part
-of, what it uses — so the repo is explorable by **concept** instead of by crawling folders.
+*projection* of the code: every file declares traversable **concepts** (what it is, what it's part
+of, what it uses), so the repo is explorable by **concept** instead of by crawling folders.
 "Show me everything that touches caching" becomes one traversal.
 
 The core discipline: **meaning emerges from the intersection of several true edges**, not from one
@@ -176,7 +178,7 @@ Common flags: `--root <dir>`, `--json`, `generate --stdout`, `stamp --write`, `s
 ## For AI agents
 
 atlas exists largely so agents stop grab-bagging files and answering from stale labels. Drop this
-line into your agent's system prompt / `CLAUDE.md` / `AGENTS.md` so it navigates by **concept**
+line into your agent's system prompt / `CLAUDE.md` / `AGENTS.md` so it finds code by **concept**
 instead of crawling folders:
 
 > This repo is mapped by **atlas**. To find code by concept instead of by filename: read `MAP.md`
@@ -343,13 +345,13 @@ case's expected answer: a thesaurus tuned to its tests only teaches the tests.
 
 `atlas report` emits two artifacts:
 
-- **`COVERAGE.md`** — diffable, GitHub-native: a totals table, a Mermaid coverage pie, a per-category
+- **`COVERAGE.md`**: a diffable, GitHub-native file with a totals table, a Mermaid coverage pie, a per-category
   gap table (required `@kind`/`@partOf` gaps split from the `@uses` curation buckets), and a Mermaid
-  concept-dependency graph. Categories group by **effective concept** — a file's declared `@partOf`, or the
-  rules' *predicted* concept when unannotated — so you get a per-concept work plan even at 0% coverage.
-- **`atlas.html`** — a self-contained interactive graph ([Cytoscape.js](https://js.cytoscape.org/)):
+  concept-dependency graph. Categories group by **effective concept** (a file's declared `@partOf`, or the
+  rules' *predicted* concept when unannotated), so you get a per-concept work plan even at 0% coverage.
+- **`atlas.html`**: a self-contained interactive graph ([Cytoscape.js](https://js.cytoscape.org/)):
   concepts grouped by class (compound nodes), coloured by coverage; click a concept to drill into its file
-  list, click to highlight its dependencies (traverse). No build step — open it in a browser.
+  list, click to highlight its dependencies (traverse). No build step: open it in a browser.
 
 ## The annotation model
 
@@ -357,7 +359,7 @@ case's expected answer: a thesaurus tuned to its tests only teaches the tests.
 |----------|-----|-------|-------|
 | What is this? | `@kind` | closed enum | 1+, e.g. `entrypoint, route` (a role, not a layer) |
 | What is it part of? | `@partOf` | `class:name` concept(s) | membership; multi is normal |
-| What does it use? | `@uses` | `class:name` concept(s) | dependency, load-bearing only |
+| What does it use? | `@uses` | `class:name` concept(s) | real dependencies only |
 | What does it build? | `@constructs` | factory output | constructors only |
 
 All axes are multi-valued (comma-separated on one line). `@atlas` opens the block.
@@ -376,36 +378,36 @@ A top-of-file JSDoc block, above the imports (below a shebang if present):
 ```
 
 Rules of thumb:
-- **`@kind` is a ROLE, never a layer.** Use the file's role(s) from the vocab. Never put `feature`/`primitive`/`infrastructure` in `@kind` — those are concept *classes*, expressed via `@partOf`. A file can hold several roles (`constructor, registry`).
-- **`@partOf` is membership** — the concept(s) this file *composes* (remove it and the concept breaks). Multiple is normal and expected: a feature has **many** controllers/routes/**entrypoints**; a file can be part of a feature *and* a cross-cutting tag (`feature:inquiry, superadmin`). The reusable helpers that build something belong to it — e.g. `makeController` and the route-template helper services are all `@partOf primitive:routeTemplates`.
-- **`@uses` is dependency, LOAD-BEARING only** — a concept this file depends on but isn't part of, where someone reasoning about that concept's blast radius needs this file. Not every import. Skip incidental touches (one `db.x.update()` through the request context is not "using" the database). Write `@uses none` only after a human/agent looked and it genuinely uses nothing load-bearing; otherwise omit the line (= uncurated).
-- **Validate names against the repo's `.atlas/`** — `@kind` ∈ `kinds.ts`; `@partOf`/`@uses` must name a concept that exists in `concepts.ts`.
-- **Prefer several broad-true tags over one narrow tag** — meaning emerges from the intersection of true edges, not from one hyper-specific label.
+- **`@kind` is a ROLE, never a layer.** Use the file's role(s) from the vocab. Never put `feature`/`primitive`/`infrastructure` in `@kind`; those are concept *classes*, expressed via `@partOf`. A file can hold several roles (`constructor, registry`).
+- **`@partOf` is membership:** the concept(s) this file *composes* (remove it and the concept breaks). Multiple is normal and expected: a feature has **many** controllers/routes/**entrypoints**; a file can be part of a feature *and* a cross-cutting tag (`feature:inquiry, superadmin`). The reusable helpers that build something belong to it: `makeController` and the route-template helper services are all `@partOf primitive:routeTemplates`.
+- **`@uses` is a real dependency only:** a concept this file depends on but isn't part of, where someone reasoning about that concept's blast radius needs this file. Not every import. Skip incidental touches (one `db.x.update()` through the request context is not "using" the database). Write `@uses none` only after a human/agent looked and found no such dependency; otherwise omit the line (= uncurated).
+- **Validate names against the repo's `.atlas/`:** `@kind` ∈ `kinds.ts`; `@partOf`/`@uses` must name a concept that exists in `concepts.ts`.
+- **Prefer several broad-true tags over one narrow tag:** meaning emerges from the intersection of true edges, not from one hyper-specific label.
 
 ### `@uses` is never auto-stamped
 
 Absence is meaningful, so atlas leaves `@uses` out of stamping entirely:
 
 - **no `@uses` line** = *uncurated* (nobody filled it in)
-- **`@uses none`** = *curated-empty* (a human looked; it uses nothing load-bearing)
+- **`@uses none`** = *curated-empty* (a human looked; it has no real dependency)
 - **`@uses? x`** = *proposed* (a patcher suggestion awaiting acceptance)
 
 `coverage` reports these as distinct buckets.
 
 ## The patcher: `atlas stamp`
 
-Blanks are fillable on demand — the `eslint --fix` shape. Always **dry-run by default**; pass
+Blanks are fillable on demand, in the `eslint --fix` shape. Always **dry-run by default**; pass
 `--write` to apply.
 
-- **Targeting** — the whole repo by default, or any number of files and folders (`src/`, `./src`, `.`),
+- **Targeting:** the whole repo by default, or any number of files and folders (`src/`, `./src`, `.`),
   each resolved against the repo root; a target that doesn't exist or lies outside it is an error.
-- **Additive (default)** — fill only what's absent; never modify an existing tag; never touch `@uses`.
-- **Overwrite (`--overwrite`)** — resync the derivable axes (`@kind`/`@partOf`) to the current
+- **Additive (default):** fill only what's absent; never modify an existing tag; never touch `@uses`.
+- **Overwrite (`--overwrite`):** resync the derivable axes (`@kind`/`@partOf`) to the current
   rules; **never** overwrites curated `@uses`. A `@atlas pin` block is exempt.
 
 ## CI
 
-`atlas check` is the CI primitive — it exits non-zero on any problem, so wiring it in is just
+`atlas check` is the CI primitive. It exits non-zero on any problem, so wiring it in means
 running it in a workflow (no separate package needed). Copy-paste examples live in
 [`examples/ci/`](./examples/ci/): a full-repo GitHub Actions workflow with a `MAP.md` freshness
 gate, an incremental PR variant, and a pre-commit hook. The recommended rollout on an existing
@@ -417,7 +419,7 @@ atlas check <paths…>      # enforce only the files a PR changes (skips registr
 atlas check               # enforce the whole repo
 ```
 
-Gate **coverage** the same way — a percentage floor or a ratchet that forbids regressions
+Gate **coverage** the same way, with a percentage floor or a ratchet that forbids regressions
 (ideal for a repo starting near 0%):
 
 ```bash
@@ -428,10 +430,10 @@ atlas coverage --update-baseline # record the current count (commit the baseline
 
 ## Enforcement: existence, NOT correctness
 
-`atlas check` verifies annotations **exist and use valid vocabulary** — presence of a block, that
+`atlas check` verifies annotations **exist and use valid vocabulary**: presence of a block, that
 `@kind` is in the vocab, that `@partOf`/`@uses` name a concept that exists, and that a
 concept's doc references resolve. It explicitly does **not** reconcile the import graph, judge
-whether a `@partOf` is "really true," or derive any status. Those are fool's errands that trade a
+whether a `@partOf` is true, or derive any status. Those are fool's errands that trade a
 clear structural guarantee for a fragile proxy.
 
 ## License
