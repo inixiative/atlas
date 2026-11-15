@@ -1,0 +1,34 @@
+{
+  "id": "agent-integration",
+  "title": "Agent hooks and thesaurus",
+  "routing": "Is this about putting the atlas map in front of a coding agent: the Claude Code PostToolUse hooks `atlas hook read|grep`, installing them with `atlas setup` / setupClaudeHooks / mergeAtlasHooks into .claude/settings.json, the hook library API (runClaudeCodeHook, renderNeighbourhood, renderConceptMatches, cachedGraph, findAtlasRoot, toAdditionalContext), the optional .atlas/thesaurus.ts (phrases, doc, how grep patterns match), or the CLAUDE.md / system-prompt line telling agents to use MAP.md and `graph --json` instead of grep? Jobs: show an agent a file's concepts when it reads, make a job-worded search land on a concept, wire atlas into another agent harness.",
+  "concepts": ["agent-hooks", "thesaurus", "agent-guidance"],
+  "tokens": 8375,
+  "tokenMethod": "chars/4",
+  "files": {
+    "recognise": {
+      "path": "recognise.md",
+      "tokens": 1177,
+      "experimental": true,
+      "note": "a smaller recognise-only document; knowledge.md is the Warden document"
+    },
+    "knowledge": {
+      "path": "knowledge.md",
+      "tokens": 8375
+    }
+  },
+  "runsAgreed": 3,
+  "sources": {
+    "docs": ["README.md"],
+    "docUnits": [
+      "doc:README.md#hooks-the-neighbourhood-on-every-read-and-grep",
+      "doc:README.md#thesaurus",
+      "doc:README.md#for-ai-agents"
+    ],
+    "catalogClusters": ["primitive-agent-hooks", "primitive-atlas-config", "primitive-check"],
+    "codeEntries": 16,
+    "docMembers": 10
+  },
+  "bypassLines": 13,
+  "glossaryTerms": 25
+}

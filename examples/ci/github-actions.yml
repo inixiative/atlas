@@ -21,7 +21,7 @@ jobs:
       - run: if [ -f package.json ]; then bun install --frozen-lockfile; fi
 
       # ── Annotation check ────────────────────────────────────────────────
-      # Rollout (DEV-003 Phase 4) — start warn-only, flip to enforcing later:
+      # Rollout — start warn-only, flip to enforcing later:
       #   warn-only:  bunx @inixiative/atlas check --warn-only   # prints, never fails CI
       #   enforcing:  bunx @inixiative/atlas check               # fails CI on any problem
       - name: atlas check

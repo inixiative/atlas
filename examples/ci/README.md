@@ -9,7 +9,7 @@ on any problem). These are copy-paste examples for wiring it in. Pick the ones y
 | [`github-actions-incremental.yml`](./github-actions-incremental.yml) | Check only the paths changed in a PR |
 | [`pre-commit`](./pre-commit) | Local git hook: check the staged files before commit |
 
-## Rollout (DEV-003 Phase 4): warn-only → enforcing
+## Rollout: warn-only → enforcing
 
 `atlas check` is binary (any problem fails). On an existing codebase that starts at ~0% annotated,
 flip the switch gradually:

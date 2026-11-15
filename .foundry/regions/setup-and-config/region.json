@@ -1,0 +1,41 @@
+{
+  "id": "setup-and-config",
+  "title": "Install, CLI and .atlas config",
+  "routing": "Is this about getting atlas running in a repo or configuring it: installing (`bun add -d @inixiative/atlas`, `bunx @inixiative/atlas`), the Bun-only runtime and running on an untrusted repo, the `atlas` bin and its shared flags (`--root`, `--json`, `atlas: <msg>` exit 1), `atlas init`, the `.atlas/` folder (config.ts with `defineConfig`/`partOfFor` from `@inixiative/atlas/config`, kinds.ts, concepts.ts `ConceptRegistry`, `references` resolvers), registry helpers (`conceptClass`, `conceptClasses`, `invert`), or which files atlas considers (`include`/`ignore`, git ls-files, always-ignored paths, path-tagged files, text encodings)? Jobs: install it, start a config, declare concepts, add a kind, point docs at real paths, include or exclude files.",
+  "concepts": ["install-runtime", "cli", "atlas-config", "init", "file-discovery"],
+  "tokens": 10736,
+  "tokenMethod": "chars/4",
+  "files": {
+    "recognise": {
+      "path": "recognise.md",
+      "tokens": 1630,
+      "experimental": true,
+      "note": "a smaller recognise-only document; knowledge.md is the Warden document"
+    },
+    "knowledge": {
+      "path": "knowledge.md",
+      "tokens": 10736
+    }
+  },
+  "runsAgreed": 2,
+  "sources": {
+    "docs": ["README.md", "examples/atlas-config/README.md"],
+    "docUnits": [
+      "doc:README.md#install",
+      "doc:README.md#cli",
+      "doc:README.md#configure",
+      "doc:examples/atlas-config/README.md#preface",
+      "doc:README.md#any-language"
+    ],
+    "catalogClusters": [
+      "primitive-atlas-config",
+      "primitive-cli",
+      "primitive-file-discovery",
+      "primitive-init"
+    ],
+    "codeEntries": 20,
+    "docMembers": 14
+  },
+  "bypassLines": 18,
+  "glossaryTerms": 29
+}

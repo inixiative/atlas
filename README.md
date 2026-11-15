@@ -166,6 +166,7 @@ atlas check [paths…]  # presence + vocab + reference + thesaurus existence  (t
 atlas coverage        # unannotated files; @uses curation buckets; unresolved memberships
 atlas generate        # write MAP.md from the annotated tree
 atlas report          # coverage gaps + concept graph → COVERAGE.md (Mermaid) and atlas.html (Cytoscape)
+atlas query [rule]    # files by axis: --kind/--partOf/--uses/--path and/or a json-rules predicate
 atlas stamp [paths…]  # write/refresh @atlas blocks from the rules (the patcher; dry-run by default)
 atlas hook read       # Claude Code PostToolUse hook: the concept neighbourhood of the file just read
 atlas hook grep       # Claude Code PostToolUse hook: the concepts a grep pattern names
@@ -173,7 +174,17 @@ atlas setup           # offer to add both hooks to .claude/settings.json (--yes:
 ```
 
 Common flags: `--root <dir>`, `--json`, `generate --stdout`, `stamp --write`, `stamp --overwrite`,
-`coverage --min/--ratchet`, `report --out <dir>/--md/--html`.
+`check --warn-only`, `coverage --min/--ratchet`, `report --out <dir>/--md/--html`.
+
+`atlas query` filters files by their tags. Each flag is a `contains` test on one axis and the flags
+AND together; a [json-rules](https://github.com/inixiative/json-rules) predicate, passed as one JSON
+argument, ANDs with them. Fields are `path`, `kind`, `partOf` and `uses`; an unannotated file has
+empty lists.
+
+```bash
+atlas query --partOf feature:billing --kind controller
+atlas query '{"field":"uses","operator":"contains","value":"infrastructure:redis"}' --json
+```
 
 ## For AI agents
 
@@ -193,7 +204,7 @@ before opening it. In an A/B test on a repo with a transitive dependency, agents
 used `atlas graph` and solved a "what reaches redis (directly or transitively)" question in ~2 tool
 calls; agents left to `grep` took 2–3× as many and risk missing the transitive edge entirely.
 
-### Hooks: the neighbourhood on every Read and Grep
+## Hooks: the neighbourhood on every Read and Grep
 
 The map only helps if the agent looks at it. `atlas hook read` and `atlas hook grep` put it in
 front of the agent without asking: when it reads a file, it sees which concepts the file is part
@@ -270,7 +281,7 @@ How they behave:
   adapter (stdin JSON in, `hookSpecificOutput.additionalContext` out). Another harness needs only
   its own adapter.
 
-### Thesaurus
+## Thesaurus
 
 A grep for the job ("seed a user", "lock", "factory") names no concept, so the grep hook used to
 say nothing at exactly the moment an agent was looking for something that already exists. The

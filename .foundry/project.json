@@ -1,0 +1,4 @@
+{
+  "$comment": "atlas' shared Foundry settings. The chorus is on: .foundry/regions holds the generated region Wardens, the only Wardens Foundry runs. To turn it off for yourself, set projects[<atlas id>].chorus.enabled = false in your Foundry settings.",
+  "chorus": { "enabled": true }
+}
