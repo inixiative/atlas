@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1
+
+- `@inixiative/json-rules` ^4.2.0 (was ^3.23): atlas reads `check` only, so nothing changes for callers; consumers no longer install a second json-rules for atlas (Aron 2026-11-18: "Atlas should still just use the latest").
+
 ## 0.5.0
 
 Atlas works on any repo: any language, docs and plain files included.
