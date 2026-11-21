@@ -39,7 +39,8 @@
   "scripts": {
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "check": "bun run typecheck && bun run lint && bun run test",
+    "check:all": "bun run typecheck && bun run lint && bun run test",
+    "check": "inixiative-config bounded -- bun run check:all",
     "atlas": "bun run ./bin/atlas.ts",
     "prepublishOnly": "bun run check && bun run test",
     "lint": "biome check .",
