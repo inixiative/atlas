@@ -39,11 +39,12 @@
   "scripts": {
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "check": "bun run typecheck && bun run lint && bun run test",
+    "check:all": "bun run typecheck && bun run lint && bun run test",
+    "check": "inixiative-config bounded -- bun run check:all",
     "atlas": "bun run ./bin/atlas.ts",
     "prepublishOnly": "bun run check && bun run test",
     "lint": "biome check .",
-    "prepare": "if git rev-parse --git-dir >/dev/null 2>&1; then lefthook install; fi"
+    "prepare": "if git rev-parse --git-dir >/dev/null 2>&1; then root=\"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")\"; if [ -x \"$root/node_modules/.bin/lefthook\" ]; then (cd \"$root\" && ./node_modules/.bin/lefthook install); fi; fi"
   },
   "engines": {
     "bun": ">=1.0.0"
